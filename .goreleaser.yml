@@ -1,0 +1,125 @@
+project_name: infranow
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: infranow
+    main: ./cmd/infranow
+    binary: infranow
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: infranow-archive
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Performance improvements
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Refactors
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: ppiankov
+    name: infranow
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## infranow {{ .Tag }} ({{ .Date }})
+
+    Attention-first infrastructure monitoring. Deterministic, real-time triage from Prometheus metrics.
+
+    ### Installation
+
+    Download the appropriate binary for your platform:
+
+    ```bash
+    # Linux amd64
+    curl -LO https://github.com/ppiankov/infranow/releases/download/{{ .Tag }}/infranow_{{ .Version }}_linux_amd64.tar.gz
+    tar -xzf infranow_{{ .Version }}_linux_amd64.tar.gz
+    sudo mv infranow /usr/local/bin/
+
+    # macOS amd64
+    curl -LO https://github.com/ppiankov/infranow/releases/download/{{ .Tag }}/infranow_{{ .Version }}_darwin_amd64.tar.gz
+    tar -xzf infranow_{{ .Version }}_darwin_amd64.tar.gz
+    sudo mv infranow /usr/local/bin/
+
+    # macOS arm64 (Apple Silicon)
+    curl -LO https://github.com/ppiankov/infranow/releases/download/{{ .Tag }}/infranow_{{ .Version }}_darwin_arm64.tar.gz
+    tar -xzf infranow_{{ .Version }}_darwin_arm64.tar.gz
+    sudo mv infranow /usr/local/bin/
+    ```
+
+    Or install from source:
+
+    ```bash
+    go install github.com/ppiankov/infranow/cmd/infranow@{{ .Tag }}
+    ```
+
+    ### Quick Start
+
+    ```bash
+    infranow monitor --prometheus-url http://localhost:9090
+    ```
+
+    ### What's Changed
+  footer: |
+    **Full Changelog**: https://github.com/ppiankov/infranow/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+    **Remember**: The best monitoring tool is the one that's silent when everything works. 🎯

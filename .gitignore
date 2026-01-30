@@ -41,6 +41,7 @@ artifacts/
 *.yml
 !.github/**/*.yml
 !.github/**/*.yaml
+!.goreleaser.yml
 
 # Local testing
 .env
