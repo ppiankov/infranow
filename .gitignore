@@ -1,0 +1,52 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+
+# Build artifacts
+dist/
+artifacts/
+
+# Configuration files (may contain secrets)
+*.yaml
+*.yml
+!.github/**/*.yml
+!.github/**/*.yaml
+
+# Local testing
+.env
+.env.local
+
+# Release artifacts
+*.tar.gz
+*.zip
+checksums.txt
