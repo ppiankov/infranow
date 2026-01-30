@@ -93,10 +93,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateProblems()
 
 		case "up", "k":
-			m.viewport.LineUp(1)
+			m.viewport.ScrollUp(1)
 
 		case "down", "j":
-			m.viewport.LineDown(1)
+			m.viewport.ScrollDown(1)
 
 		case "g", "home":
 			m.viewport.GotoTop()
@@ -105,10 +105,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.GotoBottom()
 
 		case "pgup":
-			m.viewport.ViewUp()
+			m.viewport.PageUp()
 
 		case "pgdown":
-			m.viewport.ViewDown()
+			m.viewport.PageDown()
 		}
 
 	case tea.WindowSizeMsg:

@@ -51,7 +51,10 @@ surfaces problems ranked by importance.`,
 	cmd.Flags().StringVar(&exportFile, "export-file", "", "Export problems to file")
 
 	// Mark required flags
-	cmd.MarkFlagRequired("prometheus-url")
+	if err := cmd.MarkFlagRequired("prometheus-url"); err != nil {
+		// This should never happen as the flag is defined above
+		panic(fmt.Sprintf("failed to mark prometheus-url as required: %v", err))
+	}
 
 	return cmd
 }
