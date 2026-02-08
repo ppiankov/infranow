@@ -195,7 +195,7 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 
 ## Known limitations
 
-- **Low test coverage.** Only `detector` (61%) and `models` (46%) have tests. Everything else is at 0%. This is the top priority for v0.1.1.
+- **No integration tests.** Unit test coverage is >80% but there are no integration tests against a live Prometheus instance.
 - **No SARIF output.** The `--output sarif` flag was planned but never implemented. It has been removed from the CLI to avoid dead-end errors.
 - **No metrics endpoint.** The `--metrics-port` flag was planned but never implemented. Removed for the same reason.
 - **No config file support.** The `--config` flag is accepted but not wired to anything.
@@ -207,7 +207,9 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 
 ### v0.1.1
 
-- Increase test coverage to >80% across all packages
+- ~~Increase test coverage to >80% across all packages~~ (done)
+- Integration tests with docker-compose + Prometheus
+- Watcher goroutine orchestration tests
 - Config file support (YAML)
 - Custom detector thresholds via config
 
