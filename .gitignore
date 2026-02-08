@@ -1,0 +1,9 @@
+# Build artifacts
+bin/
+dist/
+*.exe
+
+# Test artifacts
+coverage.out
+
+# Local overrides
