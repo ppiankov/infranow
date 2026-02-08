@@ -35,9 +35,10 @@ jobs:
         id: project
         run: echo "name=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_OUTPUT
 
-      - name: Build binaries
+      - name: Build and package binaries
         run: |
           VERSION=${GITHUB_REF_NAME}
+          VERSION_NUM=${VERSION#v}
           PROJECT=${{ steps.project.outputs.name }}
           LDFLAGS="-s -w -X main.version=${VERSION}"
 
@@ -49,17 +50,23 @@ jobs:
             "windows/amd64"
           )
 
-          mkdir -p dist
+          mkdir -p dist staging
 
           for platform in "${platforms[@]}"; do
             GOOS="${platform%/*}"
             GOARCH="${platform#*/}"
-            output="dist/${PROJECT}-${GOOS}-${GOARCH}"
+            binary="${PROJECT}"
+            archive="${PROJECT}_${VERSION_NUM}_${GOOS}_${GOARCH}"
+
             if [ "$GOOS" = "windows" ]; then
-              output="${output}.exe"
+              binary="${binary}.exe"
+              GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
+              cd staging && zip "../dist/${archive}.zip" "${binary}" && cd ..
+            else
+              GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
+              tar -czf "dist/${archive}.tar.gz" -C staging "${binary}"
             fi
-            echo "Building ${output}..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "$output" ./cmd/${PROJECT}/
+            rm -f "staging/${binary}"
           done
 
       - name: Generate checksums
@@ -71,9 +78,39 @@ jobs:
         id: notes
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} /^## \[/{found=0} found" CHANGELOG.md 2>/dev/null || echo "Release ${GITHUB_REF_NAME}")
+          PROJECT=${{ steps.project.outputs.name }}
+          REPO=${{ github.repository }}
+          TAG=${GITHUB_REF_NAME}
+
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} /^## \[/{found=0} found" CHANGELOG.md 2>/dev/null || echo "Release ${TAG}")
+
+          cat > /tmp/release-body.md <<NOTES_EOF
+          ${CHANGELOG}
+
+          ## Install
+
+          \`\`\`bash
+          # macOS (Apple Silicon)
+          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_darwin_arm64.tar.gz
+          tar -xzf ${PROJECT}_${VERSION}_darwin_arm64.tar.gz
+          sudo mv ${PROJECT} /usr/local/bin/
+
+          # macOS (Intel)
+          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_darwin_amd64.tar.gz
+          tar -xzf ${PROJECT}_${VERSION}_darwin_amd64.tar.gz
+          sudo mv ${PROJECT} /usr/local/bin/
+
+          # Linux (amd64)
+          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_linux_amd64.tar.gz
+          tar -xzf ${PROJECT}_${VERSION}_linux_amd64.tar.gz
+          sudo mv ${PROJECT} /usr/local/bin/
+          \`\`\`
+
+          **Verify checksums:** \`sha256sum -c checksums.txt\`
+          NOTES_EOF
+
           echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
+          cat /tmp/release-body.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - uses: softprops/action-gh-release@v2
