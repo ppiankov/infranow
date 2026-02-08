@@ -8,3 +8,12 @@ coverage.out
 
 # Local overrides
 CLAUDE.local.md
+.claude/
+
+# Claude Code — auto-generated and personal (skills/ and agents/ are committed)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/projects/
+.claude/todos/
+.claude/plans/
+.claude/checkpoints.log
