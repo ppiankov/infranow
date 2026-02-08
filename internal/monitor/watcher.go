@@ -309,12 +309,12 @@ func (w *Watcher) GetPrometheusHealth() (healthy bool, lastCheck time.Time) {
 
 // PrometheusStats contains Prometheus watchdog statistics
 type PrometheusStats struct {
-	Healthy            bool
-	LastCheck          time.Time
+	Healthy             bool
+	LastCheck           time.Time
 	LastSuccessfulQuery time.Time
-	QueryCount         int64
-	ErrorCount         int64
-	ErrorRate          float64
+	QueryCount          int64
+	ErrorCount          int64
+	ErrorRate           float64
 }
 
 // GetPrometheusStats returns detailed Prometheus statistics
@@ -323,11 +323,11 @@ func (w *Watcher) GetPrometheusStats() PrometheusStats {
 	defer w.mu.RUnlock()
 
 	stats := PrometheusStats{
-		Healthy:            w.prometheusHealthy,
-		LastCheck:          w.lastPrometheusCheck,
+		Healthy:             w.prometheusHealthy,
+		LastCheck:           w.lastPrometheusCheck,
 		LastSuccessfulQuery: w.lastSuccessfulQuery,
-		QueryCount:         w.queryCount,
-		ErrorCount:         w.errorCount,
+		QueryCount:          w.queryCount,
+		ErrorCount:          w.errorCount,
 	}
 
 	if stats.QueryCount > 0 {

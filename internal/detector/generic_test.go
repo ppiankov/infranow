@@ -2,6 +2,7 @@ package detector
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,38 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 	"github.com/prometheus/common/model"
 )
+
+func TestDetectorMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		detector    Detector
+		wantName    string
+		wantTypes   int
+		wantNonZero bool
+	}{
+		{"high error rate", NewHighErrorRateDetector(), "generic_high_error_rate", 2, true},
+		{"disk space", NewDiskSpaceDetector(), "generic_disk_space", 2, true},
+		{"memory pressure", NewHighMemoryPressureDetector(), "generic_memory_pressure", 1, true},
+		{"oom kill", NewOOMKillDetector(), "kubernetes_oom_kills", 1, true},
+		{"crashloop", NewCrashLoopBackOffDetector(), "kubernetes_crashloop", 1, true},
+		{"imagepull", NewImagePullBackOffDetector(), "kubernetes_imagepull", 1, true},
+		{"pending", NewPodPendingDetector(), "kubernetes_pending", 1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.detector.Name() != tt.wantName {
+				t.Errorf("Name() = %q, want %q", tt.detector.Name(), tt.wantName)
+			}
+			if len(tt.detector.EntityTypes()) != tt.wantTypes {
+				t.Errorf("EntityTypes() len = %d, want %d", len(tt.detector.EntityTypes()), tt.wantTypes)
+			}
+			if tt.detector.Interval() <= 0 {
+				t.Error("Interval() should be positive")
+			}
+		})
+	}
+}
 
 func TestHighErrorRateDetector(t *testing.T) {
 	mockProvider := &metrics.MockProvider{
@@ -135,6 +168,51 @@ func TestHighMemoryPressureDetector(t *testing.T) {
 
 	if p.BlastRadius < 5 {
 		t.Errorf("expected blast radius >= 5 for node problems, got %d", p.BlastRadius)
+	}
+}
+
+func TestHighErrorRateDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewHighErrorRateDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
+	}
+}
+
+func TestDiskSpaceDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewDiskSpaceDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
+	}
+}
+
+func TestHighMemoryPressureDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewHighMemoryPressureDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
 	}
 }
 

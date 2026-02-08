@@ -69,6 +69,59 @@ func TestUpdatePersistence(t *testing.T) {
 	}
 }
 
+func TestParseSeverity(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    Severity
+		wantErr bool
+	}{
+		{"warning lowercase", "warning", SeverityWarning, false},
+		{"critical mixed case", "Critical", SeverityCritical, false},
+		{"fatal uppercase", "FATAL", SeverityFatal, false},
+		{"invalid string", "info", "", true},
+		{"empty string", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseSeverity(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseSeverity(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("ParseSeverity(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAtLeast(t *testing.T) {
+	tests := []struct {
+		name      string
+		severity  Severity
+		threshold Severity
+		want      bool
+	}{
+		{"fatal >= fatal", SeverityFatal, SeverityFatal, true},
+		{"fatal >= critical", SeverityFatal, SeverityCritical, true},
+		{"fatal >= warning", SeverityFatal, SeverityWarning, true},
+		{"critical >= critical", SeverityCritical, SeverityCritical, true},
+		{"critical >= warning", SeverityCritical, SeverityWarning, true},
+		{"critical < fatal", SeverityCritical, SeverityFatal, false},
+		{"warning < critical", SeverityWarning, SeverityCritical, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.severity.AtLeast(tt.threshold)
+			if got != tt.want {
+				t.Errorf("%v.AtLeast(%v) = %v, want %v", tt.severity, tt.threshold, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSeverityOrdering(t *testing.T) {
 	fatal := &Problem{Severity: SeverityFatal}
 	critical := &Problem{Severity: SeverityCritical}
