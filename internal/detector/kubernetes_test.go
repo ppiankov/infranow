@@ -2,6 +2,7 @@ package detector
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -51,6 +52,21 @@ func TestOOMKillDetector(t *testing.T) {
 	}
 }
 
+func TestOOMKillDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewOOMKillDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
+	}
+}
+
 func TestCrashLoopBackOffDetector(t *testing.T) {
 	mockProvider := &metrics.MockProvider{
 		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
@@ -88,7 +104,22 @@ func TestCrashLoopBackOffDetector(t *testing.T) {
 	}
 }
 
-func TestImagePullBackOffDetector(t *testing.T) {
+func TestCrashLoopBackOffDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewCrashLoopBackOffDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
+	}
+}
+
+func TestImagePullBackOffDetector_NoProblems(t *testing.T) {
 	mockProvider := &metrics.MockProvider{
 		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
 			return model.Vector{}, nil // No problems
@@ -104,6 +135,57 @@ func TestImagePullBackOffDetector(t *testing.T) {
 
 	if len(problems) != 0 {
 		t.Fatalf("expected 0 problems, got %d", len(problems))
+	}
+}
+
+func TestImagePullBackOffDetector_WithProblems(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return model.Vector{
+				&model.Sample{
+					Metric: model.Metric{
+						"namespace": "prod",
+						"pod":       "web-789",
+						"container": "nginx",
+					},
+					Value: 1,
+				},
+			}, nil
+		},
+	}
+
+	d := NewImagePullBackOffDetector()
+	problems, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 problem, got %d", len(problems))
+	}
+
+	p := problems[0]
+	if p.Severity != models.SeverityCritical {
+		t.Errorf("expected CRITICAL severity, got %v", p.Severity)
+	}
+	if p.Type != "imagepullbackoff" {
+		t.Errorf("expected type 'imagepullbackoff', got '%s'", p.Type)
+	}
+}
+
+func TestImagePullBackOffDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewImagePullBackOffDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
 	}
 }
 
@@ -136,5 +218,20 @@ func TestPodPendingDetector(t *testing.T) {
 	p := problems[0]
 	if p.Type != "pending" {
 		t.Errorf("expected type 'pending', got '%s'", p.Type)
+	}
+}
+
+func TestPodPendingDetector_ProviderError(t *testing.T) {
+	mockProvider := &metrics.MockProvider{
+		QueryInstantFunc: func(ctx context.Context, query string, ts time.Time) (model.Vector, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	}
+
+	d := NewPodPendingDetector()
+	_, err := d.Detect(context.Background(), mockProvider, 5*time.Minute)
+
+	if err == nil {
+		t.Fatal("expected error when provider fails")
 	}
 }

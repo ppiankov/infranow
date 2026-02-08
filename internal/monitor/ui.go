@@ -41,13 +41,13 @@ type Model struct {
 	refreshInterval time.Duration
 	portForward     *util.PortForward
 
-	problems       []*models.Problem
-	sortMode       SortMode
-	paused         bool
-	viewport       viewport.Model
-	searchMode     bool
-	searchQuery    string
-	filteredCount  int
+	problems      []*models.Problem
+	sortMode      SortMode
+	paused        bool
+	viewport      viewport.Model
+	searchMode    bool
+	searchQuery   string
+	filteredCount int
 
 	width  int
 	height int

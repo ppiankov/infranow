@@ -53,13 +53,13 @@ type PortForward struct {
 	clientset  *kubernetes.Clientset
 	restConfig *rest.Config
 
-	mu          sync.RWMutex
-	status      PortForwardStatus
-	forwarder   *portforward.PortForwarder
-	stopChan    chan struct{}
-	readyChan   chan struct{}
-	lastError   error
-	startTime   time.Time
+	mu           sync.RWMutex
+	status       PortForwardStatus
+	forwarder    *portforward.PortForwarder
+	stopChan     chan struct{}
+	readyChan    chan struct{}
+	lastError    error
+	startTime    time.Time
 	restartCount int
 }
 
@@ -286,11 +286,11 @@ func (pf *PortForward) GetInfo() map[string]string {
 	defer pf.mu.RUnlock()
 
 	info := map[string]string{
-		"service":   pf.service,
-		"namespace": pf.namespace,
-		"local_port": pf.localPort,
+		"service":     pf.service,
+		"namespace":   pf.namespace,
+		"local_port":  pf.localPort,
 		"remote_port": pf.remotePort,
-		"status":    pf.status.String(),
+		"status":      pf.status.String(),
 	}
 
 	if pf.status == StatusRunning {
