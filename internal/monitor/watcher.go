@@ -134,7 +134,7 @@ func (w *Watcher) executeDetector(ctx context.Context, d detector.Detector) {
 		w.lastPrometheusCheck = time.Now()
 		w.errorCount++
 		w.mu.Unlock()
-		// TODO: Add proper logging
+		// Errors are tracked via errorCount and surfaced through GetPrometheusStats
 		return
 	}
 
