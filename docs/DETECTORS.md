@@ -231,6 +231,173 @@ kube_pod_status_phase{phase="Pending"} * on(namespace, pod) group_left() (time()
 
 ---
 
+## Service Mesh Detectors
+
+### LinkerdControlPlaneDetector
+
+**Purpose**: Detects linkerd control plane deployments with zero available replicas. When the control plane is down, proxy injection fails, mTLS breaks, and traffic routing stops for all meshed services.
+
+**Entity Type**: `service_mesh_control_plane`
+
+**Query**:
+```promql
+kube_deployment_status_replicas_available{namespace="linkerd"} == 0
+```
+
+**Severity**: `FATAL`
+
+**Blast Radius**: 15 (affects all meshed services)
+
+**Hint**: "Check pod status: kubectl get pods -n linkerd"
+
+---
+
+### LinkerdProxyInjectionDetector
+
+**Purpose**: Detects linkerd pods in CrashLoopBackOff. Catches proxy-injector, identity, and destination service failures.
+
+**Entity Type**: `service_mesh_control_plane`
+
+**Query**:
+```promql
+kube_pod_container_status_waiting_reason{namespace="linkerd",reason="CrashLoopBackOff"} > 0
+```
+
+**Severity**: `CRITICAL`
+
+**Blast Radius**: 10
+
+**Hint**: "Proxy injector or identity service failure"
+
+---
+
+### IstioControlPlaneDetector
+
+**Purpose**: Detects istiod with zero available replicas. When istiod is down, xDS config distribution stops and new deployments break.
+
+**Entity Type**: `service_mesh_control_plane`
+
+**Query**:
+```promql
+kube_deployment_status_replicas_available{namespace="istio-system",deployment="istiod"} == 0
+```
+
+**Severity**: `FATAL`
+
+**Blast Radius**: 15
+
+**Hint**: "Check pod status: kubectl get pods -n istio-system"
+
+---
+
+### IstioSidecarInjectionDetector
+
+**Purpose**: Detects istio-system pods in CrashLoopBackOff. Catches istiod, gateway, and pilot failures.
+
+**Entity Type**: `service_mesh_control_plane`
+
+**Query**:
+```promql
+kube_pod_container_status_waiting_reason{namespace="istio-system",reason="CrashLoopBackOff"} > 0
+```
+
+**Severity**: `CRITICAL`
+
+**Blast Radius**: 10
+
+**Hint**: "Sidecar injector or pilot failure"
+
+---
+
+## Service Mesh Certificate Detectors
+
+### LinkerdCertExpiryDetector
+
+**Purpose**: Detects linkerd identity certificates approaching expiry. Certificate expiry is the silent killer of service meshes — mTLS fails across all meshed services without warning.
+
+**Entity Type**: `service_mesh_certificate`
+
+**Query**:
+```promql
+(identity_cert_expiry_timestamp - time()) < 604800
+```
+
+**Severity** (tiered):
+- `WARNING`: < 7 days remaining
+- `CRITICAL`: < 48 hours remaining
+- `FATAL`: < 24 hours remaining or expired
+
+**Blast Radius**: 20 (highest — cert expiry kills the entire mesh)
+
+**Interval**: 60s
+
+**Hint**: "Rotate certs: linkerd check --proxy; Renew: linkerd upgrade | kubectl apply -f -"
+
+---
+
+### IstioCertExpiryDetector
+
+**Purpose**: Detects istio root certificate approaching expiry. When the Citadel root cert expires, all workload certificates become invalid.
+
+**Entity Type**: `service_mesh_certificate`
+
+**Query**:
+```promql
+(citadel_server_root_cert_expiry_timestamp - time()) < 604800
+```
+
+**Severity** (tiered):
+- `WARNING`: < 7 days remaining
+- `CRITICAL`: < 48 hours remaining
+- `FATAL`: < 24 hours remaining or expired
+
+**Blast Radius**: 20
+
+**Interval**: 60s
+
+**Hint**: "Check status: istioctl proxy-status; Rotate: istioctl create-remote-secret"
+
+---
+
+### Certificate Monitoring Setup
+
+Service mesh certificate metrics are **often missing from Prometheus**. This is the most common reason cert expiry goes undetected.
+
+**Why cert metrics are missing**:
+- Linkerd identity service not in Prometheus scrape targets
+- Istiod metrics endpoint not scraped
+- cert-manager not exporting metrics
+- ServiceMonitor or PodMonitor CRDs missing
+
+**How to verify**:
+```bash
+# Check if linkerd metrics are being scraped
+curl -s http://prometheus:9090/api/v1/targets | \
+  jq '.data.activeTargets[] | select(.labels.job | contains("linkerd"))'
+
+# Verify cert metric exists
+curl -s http://prometheus:9090/api/v1/query?query=identity_cert_expiry_timestamp
+curl -s http://prometheus:9090/api/v1/query?query=citadel_server_root_cert_expiry_timestamp
+```
+
+**Required scrape targets**:
+- **Linkerd**: `linkerd-identity` (port 9990), `linkerd-proxy-injector` (port 9995)
+- **Istio**: `istiod` (port 15014)
+- **cert-manager** (optional): `certmanager_certificate_expiration_timestamp_seconds`
+
+---
+
+### Service Mesh Metric Requirements
+
+| Metric | Source | Detector |
+|--------|--------|----------|
+| `kube_deployment_status_replicas_available` | kube-state-metrics | Control plane health |
+| `kube_pod_container_status_waiting_reason` | kube-state-metrics | Component crashes |
+| `identity_cert_expiry_timestamp` | linkerd-identity | Linkerd cert expiry |
+| `citadel_server_root_cert_expiry_timestamp` | istiod | Istio cert expiry |
+
+---
+
 ## Adding Custom Detectors
 
 To add a custom detector:
@@ -373,7 +540,7 @@ Post-MVP detector candidates:
 - **DatabaseReplicationLagDetector**: PostgreSQL/MySQL replication lag
 - **KafkaUnderReplicatedPartitionsDetector**: Kafka partition health
 - **RedisMemoryPressureDetector**: Redis memory usage
-- **CertificateExpirationDetector**: TLS certificate expiration
+- ~~**CertificateExpirationDetector**: TLS certificate expiration~~ (implemented in v0.1.1 as LinkerdCertExpiry + IstioCertExpiry)
 - **PVCFullDetector**: PersistentVolumeClaim usage
 - **NodeNotReadyDetector**: Kubernetes node health
 - **DeploymentReplicaMismatchDetector**: Desired vs actual replicas

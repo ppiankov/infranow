@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-11
+
+### Added
+
+- 6 service mesh detectors for linkerd and istio
+  - LinkerdControlPlane: detects linkerd deployments with zero replicas (FATAL)
+  - LinkerdProxyInjection: detects linkerd pods in CrashLoopBackOff (CRITICAL)
+  - IstioControlPlane: detects istiod with zero replicas (FATAL)
+  - IstioSidecarInjection: detects istio-system pods in CrashLoopBackOff (CRITICAL)
+  - LinkerdCertExpiry: tiered alerts for identity cert expiry (<7d WARNING, <48h CRITICAL, <24h FATAL)
+  - IstioCertExpiry: tiered alerts for root cert expiry (<7d WARNING, <48h CRITICAL, <24h FATAL)
+
+### Changed
+
+- Total detector count: 7 → 13
+- CLAUDE.md synced with global project standards
+- CONTRIBUTING.md commit message format aligned with conventional commits
+- ARCHITECTURE.md Go version corrected to 1.25+, stale timing fixed to 1 minute
+
+### Fixed
+
+- Duplicate `.PHONY: deps` in Makefile
+- Stale problem timing documented as 2 minutes but implemented as 1 minute
+
 ## [0.1.0] - 2026-02-08
 
 ### Added
@@ -27,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus health monitoring with connection status in TUI header
 - Multi-platform builds via Makefile (Linux, macOS, Windows)
 
-[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ppiankov/infranow/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ppiankov/infranow/releases/tag/v0.1.0

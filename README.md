@@ -209,11 +209,12 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 
 ## Roadmap
 
-### v0.1.1
+### v0.1.1 (current)
 
 - ~~Increase test coverage to >80% across all packages~~ (done)
+- ~~Service mesh detectors for linkerd and istio~~ (done: 6 detectors)
+- ~~Certificate expiry detection with tiered severity~~ (done)
 - Integration tests with docker-compose + Prometheus
-- Watcher goroutine orchestration tests
 - Config file support (YAML)
 - Custom detector thresholds via config
 
