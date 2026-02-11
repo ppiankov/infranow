@@ -1,4 +1,4 @@
-.PHONY: build test test-coverage clean lint fmt vet check install build-all help
+.PHONY: build test test-coverage clean lint fmt vet check install build-all help deps
 
 # Version info
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -75,5 +75,3 @@ deps: ## Download dependencies
 	@echo "Downloading dependencies..."
 	$(GO) mod download
 	$(GO) mod tidy
-
-.PHONY: deps

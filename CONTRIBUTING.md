@@ -81,7 +81,7 @@ make lint
 
 ```bash
 git add .
-git commit -m "Add my new feature"
+git commit -m "feat: add my new feature"
 ```
 
 ### Submitting Changes
@@ -199,41 +199,21 @@ func TestMyDetector(t *testing.T) {
 
 ## Commit Messages
 
-Follow conventional commits format:
+Follow conventional commits format: `type: concise imperative statement`
 
-```
-<type>(<scope>): <subject>
+Lowercase after colon, no period, max 72 characters. Say WHAT changed, not every detail of HOW.
 
-<body>
-
-<footer>
-```
-
-**Types**:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `test`: Adding or updating tests
-- `refactor`: Code refactoring
-- `style`: Code style changes (formatting, etc.)
-- `chore`: Maintenance tasks
+**Types**: feat, fix, docs, test, refactor, chore, perf, ci, build
 
 **Examples**:
 ```
-feat(detector): add Kafka broker detector
-
-Implements detector for Kafka broker health issues including
-under-replicated partitions and offline partitions.
-
-Closes #123
+feat: add Kafka broker detector
+fix: correct problem count display
+docs: update detector documentation
+test: add watcher orchestration tests
 ```
 
-```
-fix(ui): correct problem count display
-
-The problem count was showing stale data when problems were
-removed. Now updates properly on each refresh cycle.
-```
+Optional body (separated by blank line) for WHY, not WHAT.
 
 ## Pull Request Guidelines
 

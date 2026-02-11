@@ -8,7 +8,7 @@ Real-time infrastructure triage -- deterministic problem detection for Kubernete
 
 ## What it is
 
-infranow is a CLI/TUI tool that consumes Prometheus metrics and deterministically identifies the most important infrastructure problems right now. It runs 7 built-in detectors on a loop, ranks problems by severity and persistence, and presents them in an interactive terminal UI or as structured JSON.
+infranow is a CLI/TUI tool that consumes Prometheus metrics and deterministically identifies the most important infrastructure problems right now. It runs 13 built-in detectors on a loop, ranks problems by severity and persistence, and presents them in an interactive terminal UI or as structured JSON.
 
 When systems are healthy, the screen is empty. When something breaks, it appears immediately, ranked by importance. No dashboards. No graphs. No exploration.
 
@@ -150,7 +150,7 @@ Global:
 
 ## Detectors
 
-7 built-in detectors ship with infranow. Each runs independently at its own interval.
+13 built-in detectors ship with infranow. Each runs independently at its own interval.
 
 | Detector | Metric | Severity | Threshold | Interval |
 |----------|--------|----------|-----------|----------|
@@ -161,6 +161,12 @@ Global:
 | HighErrorRate | `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])` | CRITICAL | > 5% error rate | 30s |
 | DiskSpace | `1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)` | WARNING / CRITICAL | >= 90% / >= 95% | 60s |
 | HighMemoryPressure | `1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)` | CRITICAL | > 90% usage | 30s |
+| LinkerdControlPlane | `kube_deployment_status_replicas_available{namespace="linkerd"}` | FATAL | == 0 replicas | 30s |
+| LinkerdProxyInjection | `kube_pod_container_status_waiting_reason{namespace="linkerd"}` | CRITICAL | CrashLoopBackOff | 30s |
+| IstioControlPlane | `kube_deployment_status_replicas_available{namespace="istio-system"}` | FATAL | == 0 replicas | 30s |
+| IstioSidecarInjection | `kube_pod_container_status_waiting_reason{namespace="istio-system"}` | CRITICAL | CrashLoopBackOff | 30s |
+| LinkerdCertExpiry | `identity_cert_expiry_timestamp - time()` | WARNING / CRITICAL / FATAL | < 7d / < 48h / < 24h | 60s |
+| IstioCertExpiry | `citadel_server_root_cert_expiry_timestamp - time()` | WARNING / CRITICAL / FATAL | < 7d / < 48h / < 24h | 60s |
 
 See [docs/DETECTORS.md](docs/DETECTORS.md) for detailed documentation.
 
@@ -196,9 +202,7 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 ## Known limitations
 
 - **No integration tests.** Unit test coverage is >80% but there are no integration tests against a live Prometheus instance.
-- **No SARIF output.** The `--output sarif` flag was planned but never implemented. It has been removed from the CLI to avoid dead-end errors.
-- **No metrics endpoint.** The `--metrics-port` flag was planned but never implemented. Removed for the same reason.
-- **No config file support.** The `--config` flag is accepted but not wired to anything.
+- **No config file support.** The `--config` flag is accepted but not wired to anything yet.
 - **Single Prometheus source.** No federation, no multi-source aggregation. By design, but worth noting.
 - **No custom detectors.** Detector set is compiled in. No plugin system or config-driven detection yet.
 - **Stale problem pruning is time-based.** Problems disappear after 1 minute without re-detection, regardless of whether the underlying issue resolved.
