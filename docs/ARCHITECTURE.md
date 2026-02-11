@@ -271,7 +271,7 @@ Seen Again:
 - LastSeen = now
 - Persistence updated
 
-Stale (not seen in 2 minutes):
+Stale (not seen in 1 minute):
 - Removed from problem map
 - UI updated automatically
 ```
@@ -516,7 +516,7 @@ ui:
 
 ### Build Tools
 
-- Go 1.23+
+- Go 1.25+
 - Make
 - golangci-lint (optional)
 
