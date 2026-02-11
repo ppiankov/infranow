@@ -32,6 +32,7 @@ actionable problems when intervention is required.`,
 
 	// Add subcommands
 	rootCmd.AddCommand(NewMonitorCommand())
+	rootCmd.AddCommand(newVersionCommand())
 
 	return rootCmd
 }
