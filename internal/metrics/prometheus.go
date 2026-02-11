@@ -44,12 +44,8 @@ func (p *PrometheusClient) QueryRange(ctx context.Context, query string, start, 
 		return nil, fmt.Errorf("query range failed: %w", err)
 	}
 
-	if len(warnings) > 0 {
-		// Log warnings but don't fail
-		for _, w := range warnings {
-			_ = w // TODO: Add logging
-		}
-	}
+	// Prometheus warnings are informational (e.g., query hints) — not actionable for infranow
+	_ = warnings
 
 	matrix, ok := result.(model.Matrix)
 	if !ok {
@@ -66,12 +62,8 @@ func (p *PrometheusClient) QueryInstant(ctx context.Context, query string, ts ti
 		return nil, fmt.Errorf("instant query failed: %w", err)
 	}
 
-	if len(warnings) > 0 {
-		// Log warnings but don't fail
-		for _, w := range warnings {
-			_ = w // TODO: Add logging
-		}
-	}
+	// Prometheus warnings are informational (e.g., query hints) — not actionable for infranow
+	_ = warnings
 
 	vector, ok := result.(model.Vector)
 	if !ok {
