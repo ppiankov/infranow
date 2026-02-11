@@ -212,6 +212,16 @@ func registerDetectors(registry *detector.Registry) {
 	registry.Register(detector.NewHighErrorRateDetector())
 	registry.Register(detector.NewDiskSpaceDetector())
 	registry.Register(detector.NewHighMemoryPressureDetector())
+
+	// Service mesh control plane detectors
+	registry.Register(detector.NewLinkerdControlPlaneDetector())
+	registry.Register(detector.NewLinkerdProxyInjectionDetector())
+	registry.Register(detector.NewIstioControlPlaneDetector())
+	registry.Register(detector.NewIstioSidecarInjectionDetector())
+
+	// Service mesh certificate expiry detectors
+	registry.Register(detector.NewLinkerdCertExpiryDetector())
+	registry.Register(detector.NewIstioCertExpiryDetector())
 }
 
 func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
