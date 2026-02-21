@@ -2,12 +2,14 @@ package monitor
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/ppiankov/infranow/internal/models"
 	"github.com/ppiankov/infranow/internal/util"
 )
@@ -98,7 +100,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchMode = false
 				m.updateProblems()
 			case "backspace":
-				if len(m.searchQuery) > 0 {
+				if m.searchQuery != "" {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 					m.updateProblems()
 				}
@@ -304,7 +306,7 @@ func (m Model) renderHeader() string {
 	)
 
 	// Line 2: Prometheus URL + Port-forward status
-	promInfo := fmt.Sprintf("Prometheus: %s", m.prometheusURL)
+	promInfo := fmt.Sprintf("Prometheus: %s", sanitizeURL(m.prometheusURL))
 
 	var pfStatus string
 	if m.portForward != nil {
@@ -485,6 +487,18 @@ func waitForUpdate(watcher *Watcher) tea.Cmd {
 			problems: watcher.GetProblems(),
 		}
 	}
+}
+
+// sanitizeURL redacts userinfo (credentials) from a URL for safe display
+func sanitizeURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "[invalid URL]"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword("REDACTED", "REDACTED")
+	}
+	return u.String()
 }
 
 func formatDuration(d time.Duration) string {

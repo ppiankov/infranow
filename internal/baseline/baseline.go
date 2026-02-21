@@ -43,7 +43,7 @@ func SaveBaseline(problems []*models.Problem, path string, metadata map[string]s
 		return err
 	}
 
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, 0o600)
 }
 
 // LoadBaseline loads a baseline from a file

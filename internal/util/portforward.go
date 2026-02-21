@@ -109,14 +109,18 @@ func (pf *PortForward) Start() error {
 	pf.mu.Unlock()
 
 	// Get service to find a pod
-	svc, err := pf.clientset.CoreV1().Services(pf.namespace).Get(context.Background(), pf.service, metav1.GetOptions{})
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer apiCancel()
+	svc, err := pf.clientset.CoreV1().Services(pf.namespace).Get(apiCtx, pf.service, metav1.GetOptions{})
 	if err != nil {
 		pf.setStatus(StatusFailed, fmt.Errorf("failed to get service: %w", err))
 		return err
 	}
 
 	// Find a pod matching service selector
-	pods, err := pf.clientset.CoreV1().Pods(pf.namespace).List(context.Background(), metav1.ListOptions{
+	podCtx, podCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer podCancel()
+	pods, err := pf.clientset.CoreV1().Pods(pf.namespace).List(podCtx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{MatchLabels: svc.Spec.Selector}),
 		FieldSelector: "status.phase=Running",
 	})
@@ -165,7 +169,7 @@ func (pf *PortForward) setupPortForward(podName string) error {
 	}
 
 	// Create dialer
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, "POST", req.URL())
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport, Timeout: 10 * time.Second}, "POST", req.URL())
 
 	// Setup channels
 	pf.stopChan = make(chan struct{}, 1)

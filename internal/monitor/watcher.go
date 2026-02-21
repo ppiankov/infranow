@@ -11,6 +11,8 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 )
 
+const maxProblems = 10000
+
 // Watcher orchestrates problem detection and state management
 type Watcher struct {
 	provider metrics.MetricsProvider
@@ -202,6 +204,23 @@ func (w *Watcher) updateProblems(detected []*models.Problem) {
 	for id, p := range w.problems {
 		if p.LastSeen.Before(staleThreshold) {
 			delete(w.problems, id)
+			updated = true
+		}
+	}
+
+	// Cap problem map size to prevent unbounded growth
+	if len(w.problems) > maxProblems {
+		// Find and remove oldest non-critical problems
+		var oldest *models.Problem
+		var oldestID string
+		for id, p := range w.problems {
+			if p.Severity != models.SeverityFatal && (oldest == nil || p.LastSeen.Before(oldest.LastSeen)) {
+				oldest = p
+				oldestID = id
+			}
+		}
+		if oldestID != "" {
+			delete(w.problems, oldestID)
 			updated = true
 		}
 	}

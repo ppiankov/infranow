@@ -5,16 +5,13 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 jobs:
   test:
     name: Test before release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.25'
       - run: make test
@@ -23,13 +20,20 @@ jobs:
     name: Release
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.25'
+
+      - name: Verify module integrity
+        run: |
+          go mod download
+          go mod verify
 
       - name: Get project name
         id: project
@@ -40,7 +44,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME}
           VERSION_NUM=${VERSION#v}
           PROJECT=${{ steps.project.outputs.name }}
-          LDFLAGS="-s -w -X main.version=${VERSION}"
+          LDFLAGS="-s -w -X main.version=${VERSION_NUM}"
 
           platforms=(
             "linux/amd64"
@@ -60,10 +64,10 @@ jobs:
 
             if [ "$GOOS" = "windows" ]; then
               binary="${binary}.exe"
-              GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
+              GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
               cd staging && zip "../dist/${archive}.zip" "${binary}" && cd ..
             else
-              GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
+              GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
               tar -czf "dist/${archive}.tar.gz" -C staging "${binary}"
             fi
             rm -f "staging/${binary}"
@@ -73,6 +77,14 @@ jobs:
         run: |
           cd dist
           sha256sum * > checksums.txt
+
+      - name: GPG sign checksums
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --detach-sign --armor dist/checksums.txt
 
       - name: Extract release notes from CHANGELOG
         id: notes
@@ -113,7 +125,7 @@ jobs:
           cat /tmp/release-body.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           body: ${{ steps.notes.outputs.notes }}
           files: dist/*
