@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/ppiankov/infranow/internal/metrics"
 	"github.com/ppiankov/infranow/internal/models"
-	"github.com/prometheus/common/model"
 )
 
 func TestTrustwatchCertExpiryDetector_Warning(t *testing.T) {

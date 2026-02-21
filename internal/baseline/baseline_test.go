@@ -144,7 +144,7 @@ func TestLoadBaseline_InvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
 
-	if err := os.WriteFile(path, []byte("not json"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 

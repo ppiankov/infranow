@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+
 	"github.com/ppiankov/infranow/internal/baseline"
 	"github.com/ppiankov/infranow/internal/detector"
 	"github.com/ppiankov/infranow/internal/filter"
@@ -19,7 +23,6 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 	"github.com/ppiankov/infranow/internal/monitor"
 	"github.com/ppiankov/infranow/internal/util"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -313,11 +316,15 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 	// Export to file if specified
 	if exportFile != "" {
-		file, err := os.Create(exportFile)
+		file, err := os.OpenFile(exportFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
 			return fmt.Errorf("failed to create export file: %w", err)
 		}
-		defer func() { _ = file.Close() }()
+		defer func() {
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "[infranow] warning: failed to close export file: %v\n", err)
+			}
+		}()
 
 		encoder := json.NewEncoder(file)
 		encoder.SetIndent("", "  ")
@@ -355,14 +362,13 @@ func runTUIMode(ctx context.Context, watcher *monitor.Watcher, prometheusURL str
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		<-sigChan
-		// Send quit message to the TUI
-		os.Exit(0)
-	}()
-
 	// Run TUI
 	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	go func() {
+		<-sigChan
+		p.Send(tea.Quit())
+	}()
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
@@ -406,16 +412,35 @@ func validatePort(portStr, name string) error {
 }
 
 // validatePrometheusURL checks that the URL has a valid http or https scheme
+// and does not point to link-local addresses (SSRF prevention).
 func validatePrometheusURL(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid --prometheus-url: %w", err)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("--prometheus-url must use http:// or https:// scheme, got %q", u.Scheme)
 	}
 	if u.Host == "" {
 		return fmt.Errorf("--prometheus-url must include a host")
 	}
+
+	// Reject link-local addresses (SSRF prevention)
+	hostname := u.Hostname()
+	ips, err := net.LookupHost(hostname)
+	if err != nil {
+		return nil // DNS failure is not a validation error
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			continue
+		}
+		if ip4 := ip.To4(); ip4 != nil && ip4[0] == 169 && ip4[1] == 254 {
+			return fmt.Errorf("prometheus URL resolves to link-local address %s (possible SSRF)", ipStr)
+		}
+	}
+
 	return nil
 }
