@@ -8,7 +8,7 @@ Real-time infrastructure triage -- deterministic problem detection for Kubernete
 
 ## What it is
 
-infranow is a CLI/TUI tool that consumes Prometheus metrics and deterministically identifies the most important infrastructure problems right now. It runs 13 built-in detectors on a loop, ranks problems by severity and persistence, and presents them in an interactive terminal UI or as structured JSON.
+infranow is a CLI/TUI tool that consumes Prometheus metrics and deterministically identifies the most important infrastructure problems right now. It runs 15 built-in detectors on a loop, ranks problems by severity and persistence, and presents them in an interactive terminal UI or as structured JSON.
 
 When systems are healthy, the screen is empty. When something breaks, it appears immediately, ranked by importance. No dashboards. No graphs. No exploration.
 
@@ -22,6 +22,38 @@ When systems are healthy, the screen is empty. When something breaks, it appears
 - Not a historical analysis tool
 
 infranow shows what is failing right now. Nothing else.
+
+## Safety Model
+
+infranow is designed to be safe to run against any Prometheus instance, including production.
+
+### Zero Footprint
+
+| Property | Guarantee |
+|----------|-----------|
+| Cluster writes | None. infranow never writes to Kubernetes. |
+| CRDs / operators | None. No custom resources, no controllers, no agents. |
+| Prometheus writes | None. Read-only PromQL queries via HTTP API. |
+| Persistent state | None. All state is in-memory; exits clean. |
+| Network listeners | None. No ports opened, no servers started. |
+| Disk writes | Only when explicitly requested (`--export-file`, `--save-baseline`). |
+
+### Read-Only by Design
+
+infranow issues `GET /api/v1/query` requests to Prometheus. It cannot modify metrics, alerting rules, recording rules, or any cluster state. There is no write path in the codebase.
+
+### Bounded Resource Usage
+
+- Problem map is capped at 10,000 entries to prevent unbounded memory growth
+- Each detector runs with a configurable timeout (default 30s)
+- Concurrent detector execution is optionally bounded (`--max-concurrency`)
+- Stale problems are pruned after 1 minute without re-detection
+
+### Credential Safety
+
+- Prometheus URLs with embedded credentials are redacted in all UI and log output
+- Export files are written with restrictive permissions (0600)
+- No credentials are stored or cached
 
 ## Philosophy
 
@@ -150,7 +182,7 @@ Global:
 
 ## Detectors
 
-13 built-in detectors ship with infranow. Each runs independently at its own interval.
+15 built-in detectors ship with infranow. Each runs independently at its own interval.
 
 | Detector | Metric | Severity | Threshold | Interval |
 |----------|--------|----------|-----------|----------|
@@ -209,16 +241,23 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 
 ## Roadmap
 
-### v0.1.1 (current)
+### v0.1.1
 
 - ~~Increase test coverage to >80% across all packages~~ (done)
 - ~~Service mesh detectors for linkerd and istio~~ (done: 6 detectors)
 - ~~Certificate expiry detection with tiered severity~~ (done)
+
+### v0.1.2 (current)
+
+- ~~Trustwatch certificate and probe detectors~~ (done: 2 detectors)
+- ~~Security audit: SHA-pinned CI/CD actions, Trivy scanning, supply chain integrity~~ (done)
+- ~~Security hardening: context timeouts, SSRF prevention, file permissions, signal handling~~ (done)
+- ~~golangci-lint config with gocritic, gocyclo, revive~~ (done)
 - Integration tests with docker-compose + Prometheus
 - Config file support (YAML)
 - Custom detector thresholds via config
 
-### v0.1.2
+### v0.2.0
 
 - SARIF output for GitHub Code Scanning integration
 - Prometheus self-metrics endpoint
