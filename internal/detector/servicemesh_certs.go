@@ -14,7 +14,10 @@ const (
 	certFatalThreshold    = 86400  // 24 hours
 	certCriticalThreshold = 172800 // 48 hours
 	certWarningThreshold  = 604800 // 7 days
-	certCheckInterval     = 60     // 60 seconds between checks
+	certCheckInterval     = 60 * time.Second
+
+	// Blast radius: cert expiry affects all mTLS communication
+	blastRadiusCertExpiry = 20
 )
 
 // LinkerdCertExpiryDetector detects linkerd identity certificates nearing expiry
@@ -24,7 +27,7 @@ type LinkerdCertExpiryDetector struct {
 
 func NewLinkerdCertExpiryDetector() *LinkerdCertExpiryDetector {
 	return &LinkerdCertExpiryDetector{
-		interval: certCheckInterval * time.Second,
+		interval: certCheckInterval,
 	}
 }
 
@@ -77,7 +80,7 @@ func (d *LinkerdCertExpiryDetector) Detect(ctx context.Context, provider metrics
 				"remaining_seconds": remainingSeconds,
 			},
 			Hint:        "Rotate certs: linkerd check --proxy; Renew: linkerd upgrade | kubectl apply -f -",
-			BlastRadius: 20,
+			BlastRadius: blastRadiusCertExpiry,
 		}
 		problems = append(problems, problem)
 	}
@@ -92,7 +95,7 @@ type IstioCertExpiryDetector struct {
 
 func NewIstioCertExpiryDetector() *IstioCertExpiryDetector {
 	return &IstioCertExpiryDetector{
-		interval: certCheckInterval * time.Second,
+		interval: certCheckInterval,
 	}
 }
 
@@ -145,7 +148,7 @@ func (d *IstioCertExpiryDetector) Detect(ctx context.Context, provider metrics.M
 				"remaining_seconds": remainingSeconds,
 			},
 			Hint:        "Check status: istioctl proxy-status; Rotate: istioctl create-remote-secret",
-			BlastRadius: 20,
+			BlastRadius: blastRadiusCertExpiry,
 		}
 		problems = append(problems, problem)
 	}
@@ -156,8 +159,6 @@ func (d *IstioCertExpiryDetector) Detect(ctx context.Context, provider metrics.M
 // certSeverity returns the appropriate severity based on remaining time
 func certSeverity(remainingSeconds float64) models.Severity {
 	switch {
-	case remainingSeconds <= 0:
-		return models.SeverityFatal
 	case remainingSeconds < certFatalThreshold:
 		return models.SeverityFatal
 	case remainingSeconds < certCriticalThreshold:

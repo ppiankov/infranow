@@ -9,16 +9,38 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 )
 
+const (
+	// Generic detector intervals
+	errorRateCheckInterval = 30 * time.Second
+	diskSpaceCheckInterval = 60 * time.Second
+	memoryCheckInterval    = 30 * time.Second
+
+	// Error rate thresholds
+	errorRateThreshold = 0.05 // 5%
+
+	// Disk space thresholds (fraction of total)
+	diskWarningThreshold  = 0.90 // 90%
+	diskCriticalThreshold = 0.95 // 95%
+
+	// Memory pressure threshold (fraction of total)
+	memoryPressureThreshold = 0.90 // 90%
+
+	// Blast radius estimates
+	blastRadiusService    = 5
+	blastRadiusFilesystem = 3
+	blastRadiusNode       = 10
+)
+
 // HighErrorRateDetector detects high HTTP 5xx error rates
 type HighErrorRateDetector struct {
 	interval  time.Duration
-	threshold float64 // Error rate threshold (0.05 = 5%)
+	threshold float64
 }
 
 func NewHighErrorRateDetector() *HighErrorRateDetector {
 	return &HighErrorRateDetector{
-		interval:  30 * time.Second,
-		threshold: 0.05, // 5%
+		interval:  errorRateCheckInterval,
+		threshold: errorRateThreshold,
 	}
 }
 
@@ -69,7 +91,7 @@ func (d *HighErrorRateDetector) Detect(ctx context.Context, provider metrics.Met
 				"error_rate": errorRate,
 			},
 			Hint:        fmt.Sprintf("5xx error rate above %.0f%% threshold", d.threshold*100),
-			BlastRadius: 5, // Assume service affects multiple entities
+			BlastRadius: blastRadiusService,
 		}
 		problems = append(problems, problem)
 	}
@@ -86,9 +108,9 @@ type DiskSpaceDetector struct {
 
 func NewDiskSpaceDetector() *DiskSpaceDetector {
 	return &DiskSpaceDetector{
-		interval:          60 * time.Second,
-		warningThreshold:  0.90, // 90%
-		criticalThreshold: 0.95, // 95%
+		interval:          diskSpaceCheckInterval,
+		warningThreshold:  diskWarningThreshold,
+		criticalThreshold: diskCriticalThreshold,
 	}
 }
 
@@ -148,7 +170,7 @@ func (d *DiskSpaceDetector) Detect(ctx context.Context, provider metrics.Metrics
 				"usage_percent": usagePercent,
 			},
 			Hint:        fmt.Sprintf("Disk usage above %.0f%%", d.warningThreshold*100),
-			BlastRadius: 3, // Could affect multiple services on the node
+			BlastRadius: blastRadiusFilesystem,
 		}
 		problems = append(problems, problem)
 	}
@@ -164,8 +186,8 @@ type HighMemoryPressureDetector struct {
 
 func NewHighMemoryPressureDetector() *HighMemoryPressureDetector {
 	return &HighMemoryPressureDetector{
-		interval:  30 * time.Second,
-		threshold: 0.90, // 90%
+		interval:  memoryCheckInterval,
+		threshold: memoryPressureThreshold,
 	}
 }
 
@@ -213,7 +235,7 @@ func (d *HighMemoryPressureDetector) Detect(ctx context.Context, provider metric
 				"memory_usage_percent": usagePercent,
 			},
 			Hint:        fmt.Sprintf("Memory pressure above %.0f%%", d.threshold*100),
-			BlastRadius: 10, // Could affect many pods on the node
+			BlastRadius: blastRadiusNode,
 		}
 		problems = append(problems, problem)
 	}

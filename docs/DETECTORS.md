@@ -359,6 +359,71 @@ kube_pod_container_status_waiting_reason{namespace="istio-system",reason="CrashL
 
 ---
 
+## Trustwatch Detectors
+
+### TrustwatchCertExpiryDetector
+
+**Purpose**: Detects certificates nearing expiry via trustwatch Prometheus metrics. Covers a broader trust surface than mesh-specific detectors: webhooks, API aggregation, external TLS, and mesh issuers.
+
+**Entity Type**: `trustwatch_certificate`
+
+**Query**:
+```promql
+trustwatch_cert_expires_in_seconds < 604800
+```
+
+**Severity** (tiered):
+- `WARNING`: < 7 days remaining
+- `CRITICAL`: < 48 hours remaining
+- `FATAL`: < 24 hours remaining or expired
+
+**Blast Radius**: 10
+
+**Interval**: 60s
+
+**Entity Format**: `trustwatch/{source}/{namespace}/{name}` (e.g. `trustwatch/webhook/kube-system/cert-manager-webhook`)
+
+**Hint**: "Run: trustwatch now"
+
+**Graceful absence**: When trustwatch is not installed, the query returns empty results and no problems are reported.
+
+---
+
+### TrustwatchProbeFailureDetector
+
+**Purpose**: Detects TLS endpoints that trustwatch cannot reach. A probe failure means the endpoint is unreachable or returning invalid TLS.
+
+**Entity Type**: `trustwatch_certificate`
+
+**Query**:
+```promql
+trustwatch_probe_success == 0
+```
+
+**Severity**: `CRITICAL`
+
+**Blast Radius**: 5
+
+**Interval**: 60s
+
+**Entity Format**: `trustwatch/{source}/{namespace}/{name}`
+
+**Hint**: "Run: trustwatch now"
+
+**Graceful absence**: When trustwatch is not installed, the query returns empty results and no problems are reported.
+
+---
+
+### Trustwatch Metric Requirements
+
+| Metric | Source | Detector |
+|--------|--------|----------|
+| `trustwatch_cert_expires_in_seconds` | trustwatch Helm chart + ServiceMonitor | Cert expiry |
+| `trustwatch_probe_success` | trustwatch Helm chart + ServiceMonitor | Probe failure |
+| `trustwatch_findings_total` | trustwatch Helm chart + ServiceMonitor | (future use) |
+
+---
+
 ### Certificate Monitoring Setup
 
 Service mesh certificate metrics are **often missing from Prometheus**. This is the most common reason cert expiry goes undetected.
