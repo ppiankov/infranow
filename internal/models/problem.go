@@ -15,6 +15,19 @@ const (
 	SeverityWarning  Severity = "WARNING"  // Anomaly detected, no immediate impact
 )
 
+// Scoring weights for problem importance ranking
+const (
+	scoreFatal    = 100.0
+	scoreCritical = 50.0
+	scoreWarning  = 10.0
+
+	// Per-unit blast radius weight applied to base score
+	blastRadiusWeight = 0.1
+
+	// Persistence is normalized to hours for scoring
+	secondsPerHour = 3600.0
+)
+
 // Problem represents a unified infrastructure issue
 type Problem struct {
 	// Identity
@@ -47,14 +60,14 @@ type Problem struct {
 // Score calculates problem importance for ranking
 func (p *Problem) Score() float64 {
 	severityWeight := map[Severity]float64{
-		SeverityFatal:    100.0,
-		SeverityCritical: 50.0,
-		SeverityWarning:  10.0,
+		SeverityFatal:    scoreFatal,
+		SeverityCritical: scoreCritical,
+		SeverityWarning:  scoreWarning,
 	}
 
 	base := severityWeight[p.Severity]
-	blastRadiusMultiplier := 1.0 + (float64(p.BlastRadius) * 0.1)
-	persistenceMultiplier := 1.0 + (p.Persistence / 3600.0) // Hours
+	blastRadiusMultiplier := 1.0 + (float64(p.BlastRadius) * blastRadiusWeight)
+	persistenceMultiplier := 1.0 + (p.Persistence / secondsPerHour)
 
 	return base * blastRadiusMultiplier * persistenceMultiplier
 }

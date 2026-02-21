@@ -9,6 +9,16 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 )
 
+const (
+	meshDetectorInterval = 30 * time.Second
+
+	// Blast radius: control plane down affects all meshed workloads
+	blastRadiusControlPlane = 15
+
+	// Blast radius: component crash affects injection/identity
+	blastRadiusMeshComponent = 10
+)
+
 // LinkerdControlPlaneDetector detects linkerd control plane components with zero available replicas
 type LinkerdControlPlaneDetector struct {
 	interval time.Duration
@@ -16,7 +26,7 @@ type LinkerdControlPlaneDetector struct {
 
 func NewLinkerdControlPlaneDetector() *LinkerdControlPlaneDetector {
 	return &LinkerdControlPlaneDetector{
-		interval: 30 * time.Second,
+		interval: meshDetectorInterval,
 	}
 }
 
@@ -62,7 +72,7 @@ func (d *LinkerdControlPlaneDetector) Detect(ctx context.Context, provider metri
 				"available_replicas": float64(sample.Value),
 			},
 			Hint:        "Check pod status: kubectl get pods -n linkerd; Check logs: kubectl logs -n linkerd -l app=" + deployment,
-			BlastRadius: 15,
+			BlastRadius: blastRadiusControlPlane,
 		}
 		problems = append(problems, problem)
 	}
@@ -77,7 +87,7 @@ type LinkerdProxyInjectionDetector struct {
 
 func NewLinkerdProxyInjectionDetector() *LinkerdProxyInjectionDetector {
 	return &LinkerdProxyInjectionDetector{
-		interval: 30 * time.Second,
+		interval: meshDetectorInterval,
 	}
 }
 
@@ -125,7 +135,7 @@ func (d *LinkerdProxyInjectionDetector) Detect(ctx context.Context, provider met
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Proxy injector or identity service failure; Check logs: kubectl logs -n linkerd " + pod,
-			BlastRadius: 10,
+			BlastRadius: blastRadiusMeshComponent,
 		}
 		problems = append(problems, problem)
 	}
@@ -140,7 +150,7 @@ type IstioControlPlaneDetector struct {
 
 func NewIstioControlPlaneDetector() *IstioControlPlaneDetector {
 	return &IstioControlPlaneDetector{
-		interval: 30 * time.Second,
+		interval: meshDetectorInterval,
 	}
 }
 
@@ -186,7 +196,7 @@ func (d *IstioControlPlaneDetector) Detect(ctx context.Context, provider metrics
 				"available_replicas": float64(sample.Value),
 			},
 			Hint:        "Check pod status: kubectl get pods -n istio-system; Check logs: kubectl logs -n istio-system -l app=istiod",
-			BlastRadius: 15,
+			BlastRadius: blastRadiusControlPlane,
 		}
 		problems = append(problems, problem)
 	}
@@ -201,7 +211,7 @@ type IstioSidecarInjectionDetector struct {
 
 func NewIstioSidecarInjectionDetector() *IstioSidecarInjectionDetector {
 	return &IstioSidecarInjectionDetector{
-		interval: 30 * time.Second,
+		interval: meshDetectorInterval,
 	}
 }
 
@@ -249,7 +259,7 @@ func (d *IstioSidecarInjectionDetector) Detect(ctx context.Context, provider met
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Sidecar injector or pilot failure; Check logs: kubectl logs -n istio-system " + pod,
-			BlastRadius: 10,
+			BlastRadius: blastRadiusMeshComponent,
 		}
 		problems = append(problems, problem)
 	}
