@@ -1,0 +1,47 @@
+infranow context snapshot — 2026-02-21
+
+## Current State
+
+- Version: v0.1.2 (released, tag pushed, Homebrew formula published)
+- 15 detectors: 7 generic/k8s + 6 service mesh + 2 trustwatch
+- Tests: all passing with -race
+- Lint: clean (golangci-lint with .golangci.yml)
+- CI: passing (SHA-pinned actions + Trivy security scan)
+- Release: v0.1.2 published with checksums + GPG signing step
+- Homebrew: `brew install ppiankov/tap/infranow`
+
+## Security Audit (v0.1.2)
+
+16 security work orders completed:
+- WO-SEC-01: SHA-pinned all GitHub Actions
+- WO-SEC-02: Added Trivy security scanning to CI
+- WO-SEC-03: Added go mod verify to release
+- WO-SEC-04: Created .golangci.yml config
+- WO-SEC-05: Context timeouts for K8s API calls
+- WO-SEC-06: HTTP client timeout for port-forward
+- WO-SEC-07: SSRF prevention (link-local IP rejection)
+- WO-SEC-08: Added -trimpath to release builds
+- WO-SEC-09: Fixed LDFLAGS VERSION_NUM
+- WO-SEC-10: Scoped release permissions to job level
+- WO-SEC-11: Fixed export file permissions (0o600)
+- WO-SEC-12: Fixed TUI signal handling (tea.Quit)
+- WO-SEC-13: Capped problem map at 10k entries
+- WO-SEC-14: Handled file close error in export
+- WO-SEC-15: Sanitized URL in TUI display
+- WO-SEC-16: Added GPG signing to releases
+
+## Key Files
+
+- `.golangci.yml` — linter config with detector-specific exclusions
+- `internal/cli/monitor.go` — CLI entry, SSRF validation, file permissions
+- `internal/monitor/ui.go` — BubbleTea TUI, sanitizeURL function
+- `internal/monitor/watcher.go` — detection orchestrator, maxProblems cap
+- `internal/util/portforward.go` — K8s port-forward with context timeouts
+- `internal/detector/trustwatch_certs.go` — trustwatch detectors
+
+## Next Steps
+
+- Integration tests with docker-compose + Prometheus
+- Config file support (YAML)
+- Custom detector thresholds via config
+- SARIF output for GitHub Code Scanning (v0.2.0)
