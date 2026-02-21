@@ -9,6 +9,16 @@ import (
 	"github.com/ppiankov/infranow/internal/models"
 )
 
+const (
+	kubeDetectorInterval = 30 * time.Second
+
+	// Blast radius for single-pod issues
+	blastRadiusPod = 1
+
+	// Seconds a pod must be pending before flagging
+	podPendingThresholdSeconds = 300 // 5 minutes
+)
+
 // OOMKillDetector detects containers that have been OOM killed
 type OOMKillDetector struct {
 	interval time.Duration
@@ -16,7 +26,7 @@ type OOMKillDetector struct {
 
 func NewOOMKillDetector() *OOMKillDetector {
 	return &OOMKillDetector{
-		interval: 30 * time.Second,
+		interval: kubeDetectorInterval,
 	}
 }
 
@@ -63,7 +73,7 @@ func (d *OOMKillDetector) Detect(ctx context.Context, provider metrics.MetricsPr
 				"restart_count": float64(sample.Value),
 			},
 			Hint:        "Container memory limit too low or memory leak detected",
-			BlastRadius: 1,
+			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
 	}
@@ -78,7 +88,7 @@ type CrashLoopBackOffDetector struct {
 
 func NewCrashLoopBackOffDetector() *CrashLoopBackOffDetector {
 	return &CrashLoopBackOffDetector{
-		interval: 30 * time.Second,
+		interval: kubeDetectorInterval,
 	}
 }
 
@@ -125,7 +135,7 @@ func (d *CrashLoopBackOffDetector) Detect(ctx context.Context, provider metrics.
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Application startup failure or fatal runtime error",
-			BlastRadius: 1,
+			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
 	}
@@ -140,7 +150,7 @@ type ImagePullBackOffDetector struct {
 
 func NewImagePullBackOffDetector() *ImagePullBackOffDetector {
 	return &ImagePullBackOffDetector{
-		interval: 30 * time.Second,
+		interval: kubeDetectorInterval,
 	}
 }
 
@@ -187,7 +197,7 @@ func (d *ImagePullBackOffDetector) Detect(ctx context.Context, provider metrics.
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Image not found or registry authentication failure",
-			BlastRadius: 1,
+			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
 	}
@@ -202,7 +212,7 @@ type PodPendingDetector struct {
 
 func NewPodPendingDetector() *PodPendingDetector {
 	return &PodPendingDetector{
-		interval: 30 * time.Second,
+		interval: kubeDetectorInterval,
 	}
 }
 
@@ -221,7 +231,7 @@ func (d *PodPendingDetector) Interval() time.Duration {
 func (d *PodPendingDetector) Detect(ctx context.Context, provider metrics.MetricsProvider, window time.Duration) ([]*models.Problem, error) {
 	// Detect pods currently in Pending phase for more than 5 minutes
 	// Query: only pods where phase="Pending" AND value=1 (currently active)
-	query := `kube_pod_status_phase{phase="Pending"} == 1 and on(namespace, pod) ((time() - kube_pod_created) > 300)`
+	query := fmt.Sprintf(`kube_pod_status_phase{phase="Pending"} == 1 and on(namespace, pod) ((time() - kube_pod_created) > %d)`, podPendingThresholdSeconds)
 	result, err := provider.QueryInstant(ctx, query, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("pending pod query failed: %w", err)
@@ -254,7 +264,7 @@ func (d *PodPendingDetector) Detect(ctx context.Context, provider metrics.Metric
 				"phase": float64(sample.Value),
 			},
 			Hint:        "Insufficient cluster resources or scheduling constraints",
-			BlastRadius: 1,
+			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
 	}

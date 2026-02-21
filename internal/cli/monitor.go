@@ -222,6 +222,10 @@ func registerDetectors(registry *detector.Registry) {
 	// Service mesh certificate expiry detectors
 	registry.Register(detector.NewLinkerdCertExpiryDetector())
 	registry.Register(detector.NewIstioCertExpiryDetector())
+
+	// Trustwatch certificate detectors
+	registry.Register(detector.NewTrustwatchCertExpiryDetector())
+	registry.Register(detector.NewTrustwatchProbeFailureDetector())
 }
 
 func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
