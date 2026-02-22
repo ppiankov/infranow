@@ -23,6 +23,24 @@ When systems are healthy, the screen is empty. When something breaks, it appears
 
 infranow shows what is failing right now. Nothing else.
 
+## Project Status
+
+**Status: Alpha** · **v0.1.2** · Pre-1.0
+
+| Milestone | Status |
+|-----------|--------|
+| Core functionality | Complete |
+| Test coverage >85% | Partial |
+| Security audit | Complete |
+| golangci-lint config | Complete |
+| CI pipeline (test/lint/scan) | Complete |
+| Homebrew distribution | Complete |
+| Safety model documented | Complete |
+| API stability guarantees | Not yet |
+| v1.0 release | Planned |
+
+Pre-1.0: CLI flags and JSON output schemas may change between minor versions.
+
 ## Safety Model
 
 infranow is designed to be safe to run against any Prometheus instance, including production.
