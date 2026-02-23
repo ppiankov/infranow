@@ -1,8 +1,8 @@
 # infranow
-
 [![CI](https://github.com/ppiankov/infranow/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiankov/infranow/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
 
 Real-time infrastructure triage -- deterministic problem detection for Kubernetes and Prometheus.
 
