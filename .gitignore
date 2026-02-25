@@ -9,11 +9,23 @@ coverage.out
 # Local overrides
 CLAUDE.local.md
 .claude/
+docs/context.txt
+docs/work-orders.md
 
 # Claude Code — auto-generated and personal (skills/ and agents/ are committed)
 CLAUDE.local.md
 .claude/settings.local.json
+docs/context.txt
+docs/work-orders.md
 .claude/projects/
+docs/context.txt
+docs/work-orders.md
 .claude/todos/
+docs/context.txt
+docs/work-orders.md
 .claude/plans/
+docs/context.txt
+docs/work-orders.md
 .claude/checkpoints.log
+docs/context.txt
+docs/work-orders.md
