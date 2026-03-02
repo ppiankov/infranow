@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -11,9 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.25'
+      - run: go mod download && go mod verify
       - run: make test
 
   release:
@@ -26,107 +38,16 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.25'
 
-      - name: Verify module integrity
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Get project name
-        id: project
-        run: echo "name=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_OUTPUT
-
-      - name: Build and package binaries
-        run: |
-          VERSION=${GITHUB_REF_NAME}
-          VERSION_NUM=${VERSION#v}
-          PROJECT=${{ steps.project.outputs.name }}
-          LDFLAGS="-s -w -X main.version=${VERSION_NUM}"
-
-          platforms=(
-            "linux/amd64"
-            "linux/arm64"
-            "darwin/amd64"
-            "darwin/arm64"
-            "windows/amd64"
-          )
-
-          mkdir -p dist staging
-
-          for platform in "${platforms[@]}"; do
-            GOOS="${platform%/*}"
-            GOARCH="${platform#*/}"
-            binary="${PROJECT}"
-            archive="${PROJECT}_${VERSION_NUM}_${GOOS}_${GOARCH}"
-
-            if [ "$GOOS" = "windows" ]; then
-              binary="${binary}.exe"
-              GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
-              cd staging && zip "../dist/${archive}.zip" "${binary}" && cd ..
-            else
-              GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
-              tar -czf "dist/${archive}.tar.gz" -C staging "${binary}"
-            fi
-            rm -f "staging/${binary}"
-          done
-
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum * > checksums.txt
-
-      - name: GPG sign checksums
-        if: env.GPG_PRIVATE_KEY != ''
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          gpg --batch --detach-sign --armor dist/checksums.txt
-
-      - name: Extract release notes from CHANGELOG
-        id: notes
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          PROJECT=${{ steps.project.outputs.name }}
-          REPO=${{ github.repository }}
-          TAG=${GITHUB_REF_NAME}
-
-          CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} /^## \[/{found=0} found" CHANGELOG.md 2>/dev/null || echo "Release ${TAG}")
-
-          cat > /tmp/release-body.md <<NOTES_EOF
-          ${CHANGELOG}
-
-          ## Install
-
-          \`\`\`bash
-          # macOS (Apple Silicon)
-          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_darwin_arm64.tar.gz
-          tar -xzf ${PROJECT}_${VERSION}_darwin_arm64.tar.gz
-          sudo mv ${PROJECT} /usr/local/bin/
-
-          # macOS (Intel)
-          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_darwin_amd64.tar.gz
-          tar -xzf ${PROJECT}_${VERSION}_darwin_amd64.tar.gz
-          sudo mv ${PROJECT} /usr/local/bin/
-
-          # Linux (amd64)
-          curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_linux_amd64.tar.gz
-          tar -xzf ${PROJECT}_${VERSION}_linux_amd64.tar.gz
-          sudo mv ${PROJECT} /usr/local/bin/
-          \`\`\`
-
-          **Verify checksums:** \`sha256sum -c checksums.txt\`
-          NOTES_EOF
-
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/release-body.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
-          body: ${{ steps.notes.outputs.notes }}
-          files: dist/*
-          generate_release_notes: false
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

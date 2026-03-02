@@ -1,21 +1,31 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
-	"runtime"
 
 	"github.com/spf13/cobra"
 )
 
-func newVersionCommand() *cobra.Command {
-	return &cobra.Command{
+func newVersionCommand(info BuildInfo) *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Show infranow version information",
-		Long:  `Display version information for infranow including Go version and platform details.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("infranow version %s\n", version)
-			fmt.Printf("Go version: %s\n", runtime.Version())
-			fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		Short: "Print the version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if jsonOutput {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(info)
+			}
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "infranow %s (commit: %s, built: %s, go: %s)\n",
+				info.Version, info.Commit, info.Date, info.GoVersion)
+			return err
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output version as JSON")
+
+	return cmd
 }

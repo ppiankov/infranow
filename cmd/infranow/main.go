@@ -8,10 +8,10 @@ import (
 	"github.com/ppiankov/infranow/internal/util"
 )
 
+// Set via ldflags at build time.
 var (
-	// Version information (set via ldflags during build)
-	version = "0.1.2"
-	commit  = "unknown"
+	version = "dev"
+	commit  = "none"
 	date    = "unknown"
 )
 

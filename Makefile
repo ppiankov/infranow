@@ -10,7 +10,7 @@ BINARY_NAME := infranow
 BUILD_DIR := bin
 GO := go
 GOFLAGS := -trimpath
-LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
+LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
 
 # Default target
 .DEFAULT_GOAL := help

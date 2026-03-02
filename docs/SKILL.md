@@ -64,7 +64,9 @@ Real-time problem detection. Runs one cycle in JSON mode then exits, or loops in
 
 ### infranow version
 
-Print version.
+Print version in single-line format: `infranow 0.1.2 (commit: abc1234, built: 2026-02-21T12:34:56Z, go: go1.25.7)`
+
+Use `--json` for machine-readable output.
 
 ### infranow init
 

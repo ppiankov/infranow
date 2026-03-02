@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -9,12 +9,27 @@ import (
 var (
 	configFile string
 	verbose    bool
-	version    string // Stored for use in subcommands
+	version    string // stored for use in subcommands (baseline metadata)
 )
+
+// BuildInfo holds version and build metadata.
+type BuildInfo struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	Date      string `json:"date"`
+	GoVersion string `json:"goVersion"`
+}
 
 // NewRootCommand creates the root command for infranow
 func NewRootCommand(ver, commit, date string) *cobra.Command {
-	version = ver // Store for subcommands
+	version = ver
+	info := BuildInfo{
+		Version:   ver,
+		Commit:    commit,
+		Date:      date,
+		GoVersion: runtime.Version(),
+	}
+
 	rootCmd := &cobra.Command{
 		Use:   "infranow",
 		Short: "Attention-first infrastructure monitoring",
@@ -23,7 +38,6 @@ deterministically identifies the most important infrastructure problems right no
 
 It prioritizes silence when systems are healthy and surfaces only ranked,
 actionable problems when intervention is required.`,
-		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
 	}
 
 	// Global flags
@@ -32,7 +46,7 @@ actionable problems when intervention is required.`,
 
 	// Add subcommands
 	rootCmd.AddCommand(NewMonitorCommand())
-	rootCmd.AddCommand(newVersionCommand())
+	rootCmd.AddCommand(newVersionCommand(info))
 
 	return rootCmd
 }

@@ -3,6 +3,7 @@
 [![Go](https://img.shields.io/badge/go-1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
+[![SKILL.md](https://img.shields.io/badge/SKILL.md-docs-informational)](docs/SKILL.md)
 
 Real-time infrastructure triage -- deterministic problem detection for Kubernetes and Prometheus.
 
