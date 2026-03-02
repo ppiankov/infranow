@@ -74,7 +74,7 @@ surfaces problems ranked by importance.`,
 	cmd.Flags().StringVar(&entityTypeFilter, "entity-type", "", "Filter by entity type")
 	cmd.Flags().StringVar(&minSeverity, "min-severity", "WARNING", "Minimum severity (FATAL, CRITICAL, WARNING)")
 	cmd.Flags().DurationVar(&refreshInterval, "refresh-interval", 10*time.Second, "Detection refresh rate")
-	cmd.Flags().StringVar(&outputFormat, "output", "table", "Output format (table, text, json). Auto-detects piped stdout")
+	cmd.Flags().StringVar(&outputFormat, "output", "table", "Output format (table, text, json, sarif). Auto-detects piped stdout")
 	cmd.Flags().StringVar(&exportFile, "export-file", "", "Export problems to file")
 
 	// Kubernetes port-forward flags
@@ -210,6 +210,8 @@ func runMonitor(cmd *cobra.Command, args []string) error {
 		return runJSONMode(monitorCtx, watcher)
 	case "text":
 		return runTextMode(monitorCtx, watcher)
+	case "sarif":
+		return runSARIFMode(monitorCtx, watcher)
 	default:
 		if runOnce {
 			return runTextMode(monitorCtx, watcher)
@@ -425,6 +427,54 @@ func runTextMode(ctx context.Context, watcher *monitor.Watcher) error {
 		}
 		return nil
 	}
+
+	// Tiered exit code based on highest severity
+	if len(problems) > 0 {
+		switch monitor.HighestSeverity(problems) {
+		case models.SeverityCritical, models.SeverityFatal:
+			util.Exit(util.ExitProblemsCritical)
+		default:
+			util.Exit(util.ExitProblemsWarning)
+		}
+	}
+
+	return nil
+}
+
+func runSARIFMode(ctx context.Context, watcher *monitor.Watcher) error {
+	// Wait for first detection cycle
+	select {
+	case <-watcher.UpdateChan():
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+	}
+
+	problems := watcher.GetProblems()
+	problems = applyFilters(problems)
+
+	// Compare to baseline if requested — SARIF output for new problems only
+	if compareBaseline != "" {
+		b, err := baseline.LoadBaseline(compareBaseline)
+		if err != nil {
+			return fmt.Errorf("failed to load baseline: %w", err)
+		}
+		comparison := baseline.Compare(problems, b)
+		problems = comparison.New
+
+		if failOnDrift && len(problems) > 0 {
+			defer util.Exit(util.ExitProblemsWarning)
+		}
+	}
+
+	data, err := monitor.SARIF(problems, version)
+	if err != nil {
+		return fmt.Errorf("failed to render SARIF: %w", err)
+	}
+	if _, err := fmt.Fprintln(os.Stdout, string(data)); err != nil {
+		return fmt.Errorf("failed to write SARIF output: %w", err)
+	}
+	fmt.Fprintln(os.Stderr, monitor.FormatSARIFSummary(problems))
 
 	// Tiered exit code based on highest severity
 	if len(problems) > 0 {
