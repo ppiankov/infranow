@@ -7,9 +7,11 @@ import (
 
 // Standard exit codes following Spectre Tools conventions
 const (
-	ExitSuccess      = 0 // Command succeeded
-	ExitInvalidInput = 2 // Invalid user input or configuration
-	ExitRuntimeError = 3 // Runtime error (connection failure, etc.)
+	ExitSuccess          = 0 // Command succeeded, no problems
+	ExitProblemsWarning  = 1 // Only WARNING-level problems found
+	ExitProblemsCritical = 2 // CRITICAL or FATAL problems found
+	ExitInvalidInput     = 3 // Invalid user input or configuration
+	ExitRuntimeError     = 4 // Runtime error (connection failure, etc.)
 )
 
 // Exit terminates the program with the given exit code

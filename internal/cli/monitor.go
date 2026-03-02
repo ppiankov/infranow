@@ -15,6 +15,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/ppiankov/infranow/internal/baseline"
 	"github.com/ppiankov/infranow/internal/detector"
@@ -50,6 +51,9 @@ var (
 	failOnDrift       bool   // Feature 1: baseline mode
 	maxConcurrency    int    // Feature 4: concurrency controls
 	detectorTimeout   time.Duration
+
+	// v0.2.0 features
+	runOnce bool // --once: single detection cycle then exit
 )
 
 // NewMonitorCommand creates the monitor subcommand
@@ -70,7 +74,7 @@ surfaces problems ranked by importance.`,
 	cmd.Flags().StringVar(&entityTypeFilter, "entity-type", "", "Filter by entity type")
 	cmd.Flags().StringVar(&minSeverity, "min-severity", "WARNING", "Minimum severity (FATAL, CRITICAL, WARNING)")
 	cmd.Flags().DurationVar(&refreshInterval, "refresh-interval", 10*time.Second, "Detection refresh rate")
-	cmd.Flags().StringVar(&outputFormat, "output", "table", "Output format (table, json)")
+	cmd.Flags().StringVar(&outputFormat, "output", "table", "Output format (table, text, json). Auto-detects piped stdout")
 	cmd.Flags().StringVar(&exportFile, "export-file", "", "Export problems to file")
 
 	// Kubernetes port-forward flags
@@ -88,6 +92,7 @@ surfaces problems ranked by importance.`,
 	cmd.Flags().BoolVar(&failOnDrift, "fail-on-drift", false, "Exit 1 if new problems detected vs baseline")
 	cmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 0, "Max concurrent detector executions (0 = unlimited)")
 	cmd.Flags().DurationVar(&detectorTimeout, "detector-timeout", 30*time.Second, "Detector execution timeout")
+	cmd.Flags().BoolVar(&runOnce, "once", false, "Run one detection cycle and exit")
 	return cmd
 }
 
@@ -195,13 +200,22 @@ func runMonitor(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	// JSON output mode - run once and exit
-	if outputFormat == "json" {
-		return runJSONMode(monitorCtx, watcher)
+	// Auto-detect: fall back to text when stdout is piped
+	if outputFormat == "table" && !term.IsTerminal(int(os.Stdout.Fd())) {
+		outputFormat = "text"
 	}
 
-	// TUI mode - interactive
-	return runTUIMode(monitorCtx, watcher, prometheusURL, refreshInterval, portForward)
+	switch outputFormat {
+	case "json":
+		return runJSONMode(monitorCtx, watcher)
+	case "text":
+		return runTextMode(monitorCtx, watcher)
+	default:
+		if runOnce {
+			return runTextMode(monitorCtx, watcher)
+		}
+		return runTUIMode(monitorCtx, watcher, prometheusURL, refreshInterval, portForward)
+	}
 }
 
 func registerDetectors(registry *detector.Registry) {
@@ -348,6 +362,77 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 			if p.Severity.AtLeast(threshold) {
 				util.Exit(1) // Fail CI/CD
 			}
+		}
+	}
+
+	return nil
+}
+
+func runTextMode(ctx context.Context, watcher *monitor.Watcher) error {
+	// Wait for first detection cycle
+	select {
+	case <-watcher.UpdateChan():
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+	}
+
+	problems := watcher.GetProblems()
+	problems = applyFilters(problems)
+
+	// Save baseline if requested
+	if saveBaseline != "" {
+		metadata := map[string]string{
+			"prometheus_url": prometheusURL,
+			"version":        version,
+		}
+		if err := baseline.SaveBaseline(problems, saveBaseline, metadata); err != nil {
+			return fmt.Errorf("failed to save baseline: %w", err)
+		}
+		if verbose {
+			fmt.Fprintf(os.Stderr, "Baseline saved to: %s\n", saveBaseline)
+		}
+	}
+
+	// Compare to baseline if requested
+	if compareBaseline != "" {
+		b, err := baseline.LoadBaseline(compareBaseline)
+		if err != nil {
+			return fmt.Errorf("failed to load baseline: %w", err)
+		}
+		comparison := baseline.Compare(problems, b)
+		fmt.Print(monitor.PlainText(comparison.New, time.Now()))
+		if failOnDrift && len(comparison.New) > 0 {
+			util.Exit(util.ExitProblemsWarning)
+		}
+		return nil
+	}
+
+	// Render plain text table
+	fmt.Print(monitor.PlainText(problems, time.Now()))
+	fmt.Fprintln(os.Stderr, monitor.PlainTextSummary(problems))
+
+	// Check --fail-on threshold (explicit override)
+	if failOnSeverity != "" {
+		threshold, err := models.ParseSeverity(failOnSeverity)
+		if err != nil {
+			return err
+		}
+		for _, p := range problems {
+			if p.Severity.AtLeast(threshold) {
+				util.Exit(util.ExitProblemsCritical)
+			}
+		}
+		return nil
+	}
+
+	// Tiered exit code based on highest severity
+	if len(problems) > 0 {
+		switch monitor.HighestSeverity(problems) {
+		case models.SeverityCritical, models.SeverityFatal:
+			util.Exit(util.ExitProblemsCritical)
+		default:
+			util.Exit(util.ExitProblemsWarning)
 		}
 	}
 
