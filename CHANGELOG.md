@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-02
+
+### Added
+
+- Plain text output mode (`--output text`) for piped and CI usage
+- `--once` flag for single detection cycle then exit
+- Auto-detection of piped stdout — falls back to text mode when not a TTY
+- `--json` flag on `version` subcommand for machine-readable version output
+- Tiered exit codes: 0=clean, 1=warnings, 2=critical/fatal
+- GoReleaser config for automated builds, checksums, and Homebrew tap updates
+- SKILL.md badge in README linking to docs/SKILL.md
+
+### Changed
+
+- Version output unified to single-line format: `infranow 0.2.0 (commit: X, built: Y, go: Z)`
+- Release workflow replaced with GoReleaser action (from custom shell script)
+- SKILL.md moved from repo root to docs/SKILL.md per ANCC convention
+- Makefile LDFLAGS now include `-s -w` for smaller binaries
+- Exit codes renumbered: invalid input=3, runtime error=4
+
+### Fixed
+
+- README detector table missing trustwatch detectors (now shows all 15)
+- README architecture section showed 7 detectors instead of 15
+- ARCHITECTURE.md stale problem pruning time said 2 minutes (actual: 1 minute)
+
 ## [0.1.2] - 2026-02-21
 
 ### Added

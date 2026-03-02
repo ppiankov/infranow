@@ -26,7 +26,7 @@ infranow shows what is failing right now. Nothing else.
 
 ## Project Status
 
-**Status: Alpha** · **v0.1.2** · Pre-1.0
+**Status: Alpha** · **v0.2.0** · Pre-1.0
 
 | Milestone | Status |
 |-----------|--------|
