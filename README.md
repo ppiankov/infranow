@@ -218,6 +218,8 @@ Global:
 | IstioSidecarInjection | `kube_pod_container_status_waiting_reason{namespace="istio-system"}` | CRITICAL | CrashLoopBackOff | 30s |
 | LinkerdCertExpiry | `identity_cert_expiry_timestamp - time()` | WARNING / CRITICAL / FATAL | < 7d / < 48h / < 24h | 60s |
 | IstioCertExpiry | `citadel_server_root_cert_expiry_timestamp - time()` | WARNING / CRITICAL / FATAL | < 7d / < 48h / < 24h | 60s |
+| TrustwatchCertExpiry | `trustwatch_cert_expires_in_seconds` | WARNING / CRITICAL / FATAL | < 7d / < 48h / < 24h | 60s |
+| TrustwatchProbeFailure | `trustwatch_probe_success` | CRITICAL | == 0 | 60s |
 
 See [docs/DETECTORS.md](docs/DETECTORS.md) for detailed documentation.
 
@@ -228,7 +230,7 @@ cmd/infranow/          Entry point. Minimal main.go, delegates to internal/cli.
 internal/
   cli/                 Cobra commands. Root command + monitor subcommand.
   metrics/             MetricsProvider interface + PrometheusClient implementation.
-  detector/            Detector interface + Registry + 7 concrete detectors.
+  detector/            Detector interface + Registry + 15 concrete detectors.
   models/              Problem struct, Severity type, scoring logic.
   monitor/             Watcher (detection orchestrator) + Bubble Tea TUI.
   filter/              Post-detection namespace filtering (include/exclude globs).

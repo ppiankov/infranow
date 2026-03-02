@@ -181,7 +181,7 @@ type Watcher struct {
 - Run detectors concurrently at their intervals
 - Deduplicate and merge problems by ID
 - Track problem persistence (FirstSeen, LastSeen, Count)
-- Prune stale problems (not seen in 2 minutes)
+- Prune stale problems (not seen in 1 minute)
 - Notify UI on state changes
 
 **TUI (Bubbletea)**:
