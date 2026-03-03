@@ -5,13 +5,22 @@
 [![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
 [![SKILL.md](https://img.shields.io/badge/SKILL.md-docs-informational)](docs/SKILL.md)
 
-Real-time infrastructure triage -- deterministic problem detection for Kubernetes and Prometheus.
+Real-time infrastructure triage -- the only single-binary tool that goes from terminal triage to GitHub Security tab with zero infrastructure.
 
 ## What it is
 
-infranow is a CLI/TUI tool that consumes Prometheus metrics and deterministically identifies the most important infrastructure problems right now. It runs 15 built-in detectors on a loop, ranks problems by severity and persistence, and presents them in an interactive terminal UI or as structured JSON.
+infranow is a CLI tool that reads Prometheus metrics, runs 15 deterministic detectors, and surfaces infrastructure problems ranked by severity. It outputs to an interactive TUI, plain text, JSON, or SARIF 2.1.0 for GitHub Code Scanning.
 
-When systems are healthy, the screen is empty. When something breaks, it appears immediately, ranked by importance. No dashboards. No graphs. No exploration.
+One binary. No agents. No servers. No config files. Point it at Prometheus and see what's broken right now.
+
+```
+Terminal (TUI)  →  Interactive triage during incidents
+Plain text      →  Pipe to grep, awk, scripts
+JSON            →  CI/CD gates, automation, baseline drift detection
+SARIF           →  GitHub Security tab alongside code vulnerabilities
+```
+
+When systems are healthy, the output is empty. When something breaks, it appears immediately, ranked by importance.
 
 ## What it is NOT
 
@@ -89,16 +98,20 @@ infranow is designed to surface active failures before damage spreads, then go s
 ## Quick start
 
 ```bash
-# Install from source
+# Install via Homebrew
+brew install ppiankov/tap/infranow
+
+# Or install from source
 go install github.com/ppiankov/infranow/cmd/infranow@latest
 
-# Or build locally
-git clone https://github.com/ppiankov/infranow.git
-cd infranow
-make build
+# Interactive TUI
+infranow monitor --prometheus-url http://localhost:9090
 
-# Run against a Prometheus instance
-./bin/infranow monitor --prometheus-url http://localhost:9090
+# One-shot text output (CI-friendly)
+infranow monitor --prometheus-url http://localhost:9090 --output text --once
+
+# SARIF for GitHub Code Scanning
+infranow monitor --prometheus-url http://localhost:9090 --output sarif --once > results.sarif
 ```
 
 ## Usage
@@ -181,6 +194,35 @@ infranow monitor --k8s-service prometheus-operated \
 # Exit 1 if any CRITICAL or FATAL problems exist
 infranow monitor --prometheus-url http://prom:9090 --output json --fail-on CRITICAL
 ```
+
+### GitHub Actions integration
+
+```yaml
+- name: Infrastructure triage
+  run: |
+    infranow monitor --prometheus-url ${{ secrets.PROMETHEUS_URL }} \
+      --output sarif --once > infra-results.sarif
+
+- name: Upload to GitHub Security
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: infra-results.sarif
+    category: infrastructure
+```
+
+Infrastructure problems appear in the repository's Security tab alongside code vulnerabilities. Each detector maps to a SARIF rule; each problem maps to a result with logical location (namespace/resource).
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No problems detected |
+| 1 | WARNING-level problems found |
+| 2 | CRITICAL or FATAL problems found |
+| 3 | Invalid input (bad flags) |
+| 4 | Runtime error (connection failed) |
+
+Text and SARIF modes use tiered exit codes automatically. JSON mode uses exit code 1 when `--fail-on` threshold is met.
 
 ### All flags
 
@@ -265,8 +307,10 @@ internal/
 Data flow:
 
 ```
-Prometheus --> MetricsProvider --> Detectors --> Watcher --> TUI or JSON
-                                                  |
+                                                          ┌── TUI (interactive)
+                                                          ├── Plain text (piped)
+Prometheus --> MetricsProvider --> Detectors --> Watcher --├── JSON (structured)
+                                                  |       └── SARIF (GitHub Security)
                                           Filter + Baseline
                                                   |
                                            Exit code (CI/CD)
@@ -275,6 +319,19 @@ Prometheus --> MetricsProvider --> Detectors --> Watcher --> TUI or JSON
 The Watcher runs each detector in its own goroutine at the detector's configured interval. Results are merged into a shared problem map (deduplicated by ID, count incremented on re-detection, pruned after 1 minute of staleness). The TUI subscribes to change notifications via a channel. JSON mode waits for the first detection cycle, then dumps and exits.
 
 Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persistence / 3600)`. Severity weights: WARNING=10, CRITICAL=50, FATAL=100.
+
+## How it compares
+
+| Capability | infranow | kubectl + shell scripts | Prometheus Alertmanager | PagerDuty / Datadog |
+|------------|----------|------------------------|------------------------|---------------------|
+| Setup time | 0 — single binary | Hours of scripting | Config + receivers | SaaS onboarding |
+| Infrastructure required | None | kubectl access | Alertmanager + routing | Full SaaS stack |
+| Real-time terminal triage | TUI with ranked problems | Manual kubectl commands | No terminal UI | Web dashboards |
+| CI/CD gate | `--fail-on CRITICAL` | Custom exit codes | Webhook integration | API polling |
+| GitHub Security tab | `--output sarif` | Not possible | Not possible | Not possible |
+| Baseline drift detection | `--compare-baseline` | Manual diffing | No built-in diff | Custom alerts |
+| Problem ranking | Severity + blast radius + persistence | None | Severity only | ML-based |
+| Dependencies | Prometheus (read-only) | kubectl + cluster access | Prometheus + config | Agent + SaaS |
 
 ## Known limitations
 
