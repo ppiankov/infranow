@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -23,6 +24,26 @@ const (
 	SortBySeverity SortMode = iota
 	SortByRecency
 	SortByCount
+)
+
+// Layout constants for terminal space allocation
+const (
+	headerLines    = 4 // title, prom info, status, separator
+	footerLines    = 2 // separator + help text
+	detailLines    = 6 // detail panel height
+	detailMinLines = 3 // compact detail for small terminals
+	separatorLines = 1 // between table and detail
+	minTableHeight = 3
+	smallTerminal  = 20 // below this, use compact detail
+
+	// Column widths
+	numColWidth      = 3
+	sevColWidth      = 7
+	ageColWidth      = 8
+	entityColMin     = 15
+	titleColMin      = 10
+	entityColDefault = 30
+	colPadding       = 10 // total padding between columns
 )
 
 func (s SortMode) String() string {
@@ -48,7 +69,7 @@ type Model struct {
 	problems      []*models.Problem
 	sortMode      SortMode
 	paused        bool
-	viewport      viewport.Model
+	tbl           table.Model
 	searchMode    bool
 	searchQuery   string
 	filteredCount int
@@ -67,6 +88,16 @@ type updateMsg struct {
 
 // NewModel creates a new TUI model
 func NewModel(watcher *Watcher, prometheusURL string, refreshInterval time.Duration, portForward *util.PortForward) Model {
+	cols := computeColumns(80)
+	t := table.New(
+		table.WithColumns(cols),
+		table.WithRows([]table.Row{}),
+		table.WithFocused(true),
+		table.WithHeight(minTableHeight),
+		table.WithKeyMap(infranowTableKeyMap()),
+		table.WithStyles(infranowTableStyles()),
+	)
+
 	return Model{
 		watcher:         watcher,
 		prometheusURL:   prometheusURL,
@@ -74,7 +105,47 @@ func NewModel(watcher *Watcher, prometheusURL string, refreshInterval time.Durat
 		portForward:     portForward,
 		problems:        []*models.Problem{},
 		sortMode:        SortBySeverity,
-		paused:          false,
+		tbl:             t,
+	}
+}
+
+func infranowTableKeyMap() table.KeyMap {
+	return table.KeyMap{
+		LineUp:       key.NewBinding(key.WithKeys("up", "k")),
+		LineDown:     key.NewBinding(key.WithKeys("down", "j")),
+		PageUp:       key.NewBinding(key.WithKeys("pgup")),
+		PageDown:     key.NewBinding(key.WithKeys("pgdown")),
+		GotoTop:      key.NewBinding(key.WithKeys("home", "g")),
+		GotoBottom:   key.NewBinding(key.WithKeys("end", "G")),
+		HalfPageUp:   key.NewBinding(key.WithKeys("ctrl+u")),
+		HalfPageDown: key.NewBinding(key.WithKeys("ctrl+d")),
+	}
+}
+
+func infranowTableStyles() table.Styles {
+	return table.Styles{
+		Header:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Padding(0, 1),
+		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("57")),
+	}
+}
+
+func computeColumns(width int) []table.Column {
+	entityWidth := entityColDefault
+	titleWidth := width - numColWidth - sevColWidth - entityWidth - ageColWidth - colPadding
+	if titleWidth < titleColMin {
+		entityWidth = entityColMin
+		titleWidth = width - numColWidth - sevColWidth - entityWidth - ageColWidth - colPadding
+	}
+	if titleWidth < titleColMin {
+		titleWidth = titleColMin
+	}
+	return []table.Column{
+		{Title: "#", Width: numColWidth},
+		{Title: "SEV", Width: sevColWidth},
+		{Title: "ENTITY", Width: entityWidth},
+		{Title: "TITLE", Width: titleWidth},
+		{Title: "AGE", Width: ageColWidth},
 	}
 }
 
@@ -88,82 +159,18 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.searchMode {
 			return m.handleSearchKey(msg)
 		}
-
-		// Normal mode key handling
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-
-		case "p", " ":
-			m.paused = !m.paused
-
-		case "s":
-			m.sortMode = (m.sortMode + 1) % 3
-			m.updateProblems()
-
-		case "/":
-			m.searchMode = true
-			m.searchQuery = ""
-
-		case "esc":
-			// Clear search
-			m.searchQuery = ""
-			m.updateProblems()
-
-		case "r":
-			// Restart port-forward if active
-			if m.portForward != nil {
-				go func() {
-					_ = m.portForward.Restart() // Best-effort restart, status shown in UI
-				}()
-			}
-
-		case "?":
-			m.statusMsg = openRunbook(m.problems)
-
-		case "up", "k":
-			m.viewport.ScrollUp(1)
-
-		case "down", "j":
-			m.viewport.ScrollDown(1)
-
-		case "g", "home":
-			m.viewport.GotoTop()
-
-		case "G", "end":
-			m.viewport.GotoBottom()
-
-		case "pgup":
-			m.viewport.PageUp()
-
-		case "pgdown":
-			m.viewport.PageDown()
-		}
+		return m.handleNormalKey(msg)
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-6) // Reserve space for header/footer
-			m.viewport.YPosition = 3
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 6
-		}
-
-		m.updateViewport()
+		return m.handleResize(msg)
 
 	case tickMsg:
-		m.statusMsg = "" // Clear status on next tick
+		m.statusMsg = ""
 		if !m.paused {
 			m.updateProblems()
 		}
@@ -171,41 +178,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case updateMsg:
 		m.problems = msg.problems
-		m.updateViewport()
+		m.rebuildTableRows()
 		return m, waitForUpdate(m.watcher)
 	}
 
 	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
+	m.tbl, cmd = m.tbl.Update(msg)
+	return m, cmd
 }
 
-// View renders the TUI
-func (m Model) View() string {
-	if !m.ready {
-		return "Initializing..."
+func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "p", " ":
+		m.paused = !m.paused
+	case "s":
+		m.sortMode = (m.sortMode + 1) % 3
+		m.updateProblems()
+	case "/":
+		m.searchMode = true
+		m.searchQuery = ""
+	case "esc":
+		m.searchQuery = ""
+		m.updateProblems()
+	case "r":
+		if m.portForward != nil {
+			go func() {
+				_ = m.portForward.Restart() // Best-effort restart, status shown in UI
+			}()
+		}
+	case "?":
+		m.statusMsg = m.openSelectedRunbook()
+	case "c":
+		m.statusMsg = m.copySelectedProblem()
+	case "y":
+		m.statusMsg = m.yankSelectedEntity()
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		m.jumpToRow(int(msg.String()[0] - '0'))
+	default:
+		// Delegate navigation keys to table
+		var cmd tea.Cmd
+		m.tbl, cmd = m.tbl.Update(msg)
+		return m, cmd
 	}
-
-	var b strings.Builder
-
-	// Header
-	b.WriteString(m.renderHeader())
-	b.WriteString("\n")
-
-	// Content
-	if len(m.problems) == 0 {
-		b.WriteString(m.renderEmptyState())
-	} else {
-		b.WriteString(m.viewport.View())
-	}
-
-	// Footer
-	b.WriteString("\n")
-	b.WriteString(m.renderFooter())
-
-	return b.String()
+	return m, nil
 }
 
 func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -229,8 +246,66 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+
+	cols := computeColumns(msg.Width)
+	m.tbl.SetColumns(cols)
+	m.tbl.SetWidth(msg.Width)
+
+	detailHeight := detailLines
+	if msg.Height < smallTerminal {
+		detailHeight = detailMinLines
+	}
+	tableHeight := msg.Height - headerLines - footerLines - separatorLines - detailHeight
+	if tableHeight < minTableHeight {
+		tableHeight = minTableHeight
+	}
+	m.tbl.SetHeight(tableHeight)
+
+	m.ready = true
+	m.rebuildTableRows()
+	return m, nil
+}
+
+// View renders the TUI
+func (m Model) View() string {
+	if !m.ready {
+		return "Initializing..."
+	}
+
+	var b strings.Builder
+
+	b.WriteString(m.renderHeader())
+	b.WriteString("\n")
+
+	if len(m.problems) == 0 {
+		b.WriteString(m.renderEmptyState())
+	} else {
+		b.WriteString(m.tbl.View())
+		b.WriteString("\n")
+		b.WriteString(strings.Repeat("─", m.width))
+		b.WriteString("\n")
+		b.WriteString(m.renderDetailPanel())
+	}
+
+	b.WriteString("\n")
+	b.WriteString(m.renderFooter())
+
+	return b.String()
+}
+
+// selectedProblem returns the problem at the table cursor, or nil.
+func (m Model) selectedProblem() *models.Problem {
+	idx := m.tbl.Cursor()
+	if idx < 0 || idx >= len(m.problems) {
+		return nil
+	}
+	return m.problems[idx]
+}
+
 func (m *Model) updateProblems() {
-	// Get problems based on sort mode
 	var allProblems []*models.Problem
 	switch m.sortMode {
 	case SortBySeverity:
@@ -241,12 +316,10 @@ func (m *Model) updateProblems() {
 		allProblems = m.watcher.GetProblemsByCount()
 	}
 
-	// Apply search filter if active
 	if m.searchQuery != "" {
 		filtered := make([]*models.Problem, 0)
 		query := strings.ToLower(m.searchQuery)
 		for _, p := range allProblems {
-			// Search in entity, title, message, type
 			if strings.Contains(strings.ToLower(p.Entity), query) ||
 				strings.Contains(strings.ToLower(p.Title), query) ||
 				strings.Contains(strings.ToLower(p.Message), query) ||
@@ -262,11 +335,139 @@ func (m *Model) updateProblems() {
 		m.filteredCount = 0
 	}
 
-	m.updateViewport()
+	m.rebuildTableRows()
 }
 
-func (m *Model) updateViewport() {
-	m.viewport.SetContent(m.renderProblems())
+func (m *Model) rebuildTableRows() {
+	rows := make([]table.Row, len(m.problems))
+	now := time.Now()
+	cols := m.tbl.Columns()
+
+	// Determine entity and title widths from current columns
+	entityWidth := entityColDefault
+	titleWidth := titleColMin
+	if len(cols) >= 5 {
+		entityWidth = cols[2].Width
+		titleWidth = cols[3].Width
+	}
+
+	for i, p := range m.problems {
+		rows[i] = table.Row{
+			fmt.Sprintf("%d", i+1),
+			shortSeverity(p.Severity),
+			truncate(p.Entity, entityWidth),
+			truncate(p.Title, titleWidth),
+			humanAge(now.Sub(p.FirstSeen)),
+		}
+	}
+	m.tbl.SetRows(rows)
+}
+
+func (m *Model) jumpToRow(n int) {
+	if n < 1 || n > len(m.problems) {
+		return
+	}
+	m.tbl.SetCursor(n - 1)
+}
+
+func (m *Model) copySelectedProblem() string {
+	p := m.selectedProblem()
+	if p == nil {
+		return "No problem selected"
+	}
+	return copyToClipboard(formatProblemDetail(p))
+}
+
+func (m *Model) yankSelectedEntity() string {
+	p := m.selectedProblem()
+	if p == nil {
+		return "No problem selected"
+	}
+	return copyToClipboard(p.Entity)
+}
+
+func (m *Model) openSelectedRunbook() string {
+	p := m.selectedProblem()
+	if p == nil {
+		return "No problems to show runbook for"
+	}
+	if p.RunbookURL == "" {
+		return "No runbook available"
+	}
+
+	var cmd string
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = "open"
+	default:
+		cmd = "xdg-open"
+	}
+	if err := exec.Command(cmd, p.RunbookURL).Start(); err != nil { //nolint:gosec // URL is from internal RunbookBaseURL constant
+		return "Failed to open runbook"
+	}
+	return "Opening runbook..."
+}
+
+func formatProblemDetail(p *models.Problem) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s: %s\n", p.Severity, p.Title)
+	fmt.Fprintf(&b, "Entity: %s\n", p.Entity)
+	if p.Message != "" {
+		fmt.Fprintf(&b, "Message: %s\n", p.Message)
+	}
+	fmt.Fprintf(&b, "First seen: %s | Count: %d\n", humanAge(time.Since(p.FirstSeen)), p.Count)
+	if p.Hint != "" {
+		fmt.Fprintf(&b, "Hint: %s\n", p.Hint)
+	}
+	if p.RunbookURL != "" {
+		fmt.Fprintf(&b, "Runbook: %s\n", p.RunbookURL)
+	}
+	return b.String()
+}
+
+func (m Model) renderDetailPanel() string {
+	p := m.selectedProblem()
+	if p == nil {
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		return dimStyle.Render("  No problem selected")
+	}
+
+	var iconColor string
+	switch p.Severity {
+	case models.SeverityFatal:
+		iconColor = "9"
+	case models.SeverityCritical:
+		iconColor = "214"
+	case models.SeverityWarning:
+		iconColor = "11"
+	}
+
+	sevStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Italic(true)
+
+	var b strings.Builder
+
+	b.WriteString(sevStyle.Render(fmt.Sprintf("  %s: %s", p.Severity, p.Title)))
+	b.WriteString("\n")
+	b.WriteString(labelStyle.Render("  Entity: "))
+	b.WriteString(p.Entity)
+	b.WriteString("\n")
+	b.WriteString(labelStyle.Render(fmt.Sprintf("  Type: %s | Count: %d | Blast: %d", p.Type, p.Count, p.BlastRadius)))
+	b.WriteString("\n")
+	b.WriteString(labelStyle.Render(fmt.Sprintf("  First: %s | Last: %s",
+		humanAge(time.Since(p.FirstSeen)), humanAge(time.Since(p.LastSeen)))))
+	b.WriteString("\n")
+	b.WriteString(labelStyle.Render("  Hint: "))
+	b.WriteString(hintStyle.Render(p.Hint))
+
+	if m.height >= smallTerminal && p.RunbookURL != "" {
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("  Runbook: "))
+		b.WriteString(p.RunbookURL)
+	}
+
+	return b.String()
 }
 
 func (m Model) renderHeader() string {
@@ -285,7 +486,6 @@ func (m Model) renderHeader() string {
 		Foreground(lipgloss.Color("11")).
 		Bold(true)
 
-	// Check Prometheus health with watchdog stats
 	stats := m.watcher.GetPrometheusStats()
 	var status string
 
@@ -293,15 +493,12 @@ func (m Model) renderHeader() string {
 		timeSince := time.Since(stats.LastCheck)
 		status = errorStyle.Render(fmt.Sprintf("⚠  Prometheus DOWN (%s ago)", formatDuration(timeSince)))
 	} else if stats.ErrorRate > 0.5 && stats.QueryCount > 10 {
-		// High error rate - Prometheus might be struggling
 		status = warningStyle.Render(fmt.Sprintf("⚠  Prometheus UNSTABLE (%.0f%% errors)", stats.ErrorRate*100))
 	} else if !stats.LastSuccessfulQuery.IsZero() && time.Since(stats.LastSuccessfulQuery) > 2*time.Minute {
-		// Haven't had successful query in a while
 		status = warningStyle.Render(fmt.Sprintf("⚠  No data (%s ago)", formatDuration(time.Since(stats.LastSuccessfulQuery))))
 	} else if m.paused {
 		status = statusStyle.Render("⏸  Paused")
 	} else {
-		// Show healthy with query stats
 		status = statusStyle.Render(fmt.Sprintf("●  Running (Q:%d E:%d)", stats.QueryCount, stats.ErrorCount))
 	}
 
@@ -314,7 +511,6 @@ func (m Model) renderHeader() string {
 		sortInfo,
 	)
 
-	// Line 2: Prometheus URL + Port-forward status
 	promInfo := fmt.Sprintf("Prometheus: %s", sanitizeURL(m.prometheusURL))
 
 	var pfStatus string
@@ -324,10 +520,10 @@ func (m Model) renderHeader() string {
 
 		switch m.portForward.GetStatus() {
 		case util.StatusRunning:
-			pfStyle = statusStyle.Foreground(lipgloss.Color("10")) // Green
+			pfStyle = statusStyle.Foreground(lipgloss.Color("10"))
 			pfStatus = pfStyle.Render(fmt.Sprintf(" [PF: %s]", pfStatusStr))
 		case util.StatusStarting:
-			pfStyle = statusStyle.Foreground(lipgloss.Color("11")) // Yellow
+			pfStyle = statusStyle.Foreground(lipgloss.Color("11"))
 			pfStatus = pfStyle.Render(" [PF: starting...]")
 		case util.StatusFailed:
 			pfStyle = errorStyle
@@ -388,75 +584,6 @@ func (m Model) renderEmptyState() string {
 	return b.String()
 }
 
-func (m Model) renderProblems() string {
-	var b strings.Builder
-
-	for i, p := range m.problems {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString(m.renderProblem(i+1, p))
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func (m Model) renderProblem(index int, p *models.Problem) string {
-	var icon, iconColor string
-	switch p.Severity {
-	case models.SeverityFatal:
-		icon = "🔴"
-		iconColor = "9"
-	case models.SeverityCritical:
-		icon = "🟠"
-		iconColor = "214"
-	case models.SeverityWarning:
-		icon = "🟡"
-		iconColor = "11"
-	}
-
-	indexStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8"))
-
-	severityStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(iconColor)).
-		Bold(true)
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8"))
-
-	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("12")).
-		Italic(true)
-
-	timeSince := time.Since(p.FirstSeen).Round(time.Second)
-	timeStr := formatDuration(timeSince)
-
-	var b strings.Builder
-
-	// Line 1: [index] severity: title
-	b.WriteString(indexStyle.Render(fmt.Sprintf("[%d/%d]", index, len(m.problems))))
-	b.WriteString("\n")
-	b.WriteString(severityStyle.Render(fmt.Sprintf("%s %s: %s", icon, p.Severity, p.Title)))
-	b.WriteString("\n")
-
-	// Line 2: Entity
-	b.WriteString(labelStyle.Render("Entity: "))
-	b.WriteString(p.Entity)
-	b.WriteString("\n")
-
-	// Line 3: Metadata
-	b.WriteString(labelStyle.Render(fmt.Sprintf("First seen: %s | Count: %d", timeStr, p.Count)))
-	b.WriteString("\n")
-
-	// Line 4: Hint
-	b.WriteString(labelStyle.Render("Hint: "))
-	b.WriteString(hintStyle.Render(p.Hint))
-
-	return b.String()
-}
-
 func (m Model) renderFooter() string {
 	border := strings.Repeat("─", m.width)
 	helpStyle := lipgloss.NewStyle().
@@ -472,9 +599,9 @@ func (m Model) renderFooter() string {
 	} else if m.searchQuery != "" {
 		help = helpStyle.Render(fmt.Sprintf("Filter: %s  ", m.searchQuery)) + searchStyle.Render("(esc: clear)") + helpStyle.Render("  s: sort  p: pause  /: search  q: quit")
 	} else {
-		baseHelp := "s: sort  p: pause  /: search  ?: runbook  ↑↓/jk: scroll  g/G: top/bottom"
+		baseHelp := "s: sort  p: pause  /: search  ?: runbook  c: copy  y: yank  1-9: jump  jk: nav"
 		if m.portForward != nil {
-			baseHelp += "  r: restart-pf"
+			baseHelp += "  r: pf"
 		}
 		baseHelp += "  q: quit"
 		help = helpStyle.Render(baseHelp)
@@ -485,29 +612,6 @@ func (m Model) renderFooter() string {
 		footer += "\n" + helpStyle.Render(m.statusMsg)
 	}
 	return footer
-}
-
-// openRunbook opens the runbook URL for the first problem in the list.
-func openRunbook(problems []*models.Problem) string {
-	if len(problems) == 0 {
-		return "No problems to show runbook for"
-	}
-	p := problems[0]
-	if p.RunbookURL == "" {
-		return "No runbook available"
-	}
-
-	var cmd string
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = "open"
-	default:
-		cmd = "xdg-open"
-	}
-	if err := exec.Command(cmd, p.RunbookURL).Start(); err != nil { //nolint:gosec // URL is from internal RunbookBaseURL constant
-		return "Failed to open runbook"
-	}
-	return "Opening runbook..."
 }
 
 func tickCmd(interval time.Duration) tea.Cmd {
