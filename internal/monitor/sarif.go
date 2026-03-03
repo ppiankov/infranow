@@ -50,10 +50,11 @@ type sarifMessage struct {
 }
 
 type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
-	Level     string          `json:"level"`
-	Message   sarifMessage    `json:"message"`
-	Locations []sarifLocation `json:"locations,omitempty"`
+	RuleID     string                 `json:"ruleId"`
+	Level      string                 `json:"level"`
+	Message    sarifMessage           `json:"message"`
+	Locations  []sarifLocation        `json:"locations,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
 type sarifLocation struct {
@@ -129,6 +130,15 @@ func SARIF(problems []*models.Problem, toolVersion string) ([]byte, error) {
 					},
 				},
 			},
+		}
+		if p.History != nil {
+			r.Properties = map[string]interface{}{
+				"history/firstSeenGlobal":  p.History.FirstSeenGlobal,
+				"history/totalOccurrences": p.History.TotalOccurrences,
+			}
+			if p.History.RecurringSince != "" {
+				r.Properties["history/recurringSince"] = p.History.RecurringSince
+			}
 		}
 		results = append(results, r)
 	}

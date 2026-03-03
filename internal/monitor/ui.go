@@ -30,7 +30,7 @@ const (
 const (
 	headerLines    = 4 // title, prom info, status, separator
 	footerLines    = 2 // separator + help text
-	detailLines    = 6 // detail panel height
+	detailLines    = 7 // detail panel height
 	detailMinLines = 3 // compact detail for small terminals
 	separatorLines = 1 // between table and detail
 	minTableHeight = 3
@@ -319,6 +319,8 @@ func (m *Model) updateProblems() {
 		allProblems = m.watcher.GetProblemsByCount()
 	}
 
+	m.watcher.AnnotateHistory(allProblems)
+
 	if m.searchQuery != "" {
 		filtered := make([]*models.Problem, 0)
 		query := strings.ToLower(m.searchQuery)
@@ -463,6 +465,16 @@ func (m Model) renderDetailPanel() string {
 	b.WriteString("\n")
 	b.WriteString(labelStyle.Render("  Hint: "))
 	b.WriteString(hintStyle.Render(p.Hint))
+
+	if p.History != nil {
+		b.WriteString("\n")
+		if p.History.TotalOccurrences > 1 {
+			b.WriteString(labelStyle.Render(fmt.Sprintf("  History: recurring (%s) | %d occurrences",
+				p.History.RecurringSince, p.History.TotalOccurrences)))
+		} else {
+			b.WriteString(labelStyle.Render("  History: new (first seen)"))
+		}
+	}
 
 	if m.height >= smallTerminal && p.RunbookURL != "" {
 		b.WriteString("\n")

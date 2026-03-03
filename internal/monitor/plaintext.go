@@ -73,7 +73,11 @@ func groupByIncident(problems []*models.Problem) ([]incident, []*models.Problem)
 func renderProblemRow(b *strings.Builder, p *models.Problem, now time.Time) {
 	sev := shortSeverity(p.Severity)
 	entity := truncate(p.Entity, 30)
-	title := truncate(p.Title, 40)
+	title := p.Title
+	if p.History != nil && p.History.TotalOccurrences > 1 {
+		title += fmt.Sprintf(" [recurring %s]", p.History.RecurringSince)
+	}
+	title = truncate(title, 40)
 	age := humanAge(now.Sub(p.FirstSeen))
 	fmt.Fprintf(b, "%-8s %-30s %-40s %-10s %d\n", sev, entity, title, age, p.Count)
 }
