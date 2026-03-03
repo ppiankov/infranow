@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-03
+
+### Added
+
+- SARIF 2.1.0 output for GitHub Code Scanning (`--output sarif`)
+- Cross-detector correlation with 6 built-in rules (deployment failure, memory pressure, mesh cascades)
+- Runbook links for all 15 detectors with `?` key in TUI and HelpURI in SARIF
+- Problem history with local SQLite backend (`--history` flag, `history list/prune` subcommands)
+- Recurring problem badges in TUI, plain text, and SARIF output
+- Multi-cluster sweep command (`infranow sweep`) — scans all kubeconfig contexts via port-forward
+- Sweep parallel mode (`--parallel`), context glob filtering (`--contexts`), namespace filtering
+- Sweep output in text, JSON, and SARIF formats with cluster annotations
+- Table-based TUI with selectable rows, detail panel, copy/yank, and digit jump keys
+
+### Changed
+
+- TUI rebuilt with bubbles/table replacing viewport-based renderer
+- Detail panel expanded to 7 lines (added history badge and runbook link)
+- Named constants replace magic numbers throughout codebase
+
 ## [0.2.0] - 2026-03-02
 
 ### Added
@@ -109,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus health monitoring with connection status in TUI header
 - Multi-platform builds via Makefile (Linux, macOS, Windows)
 
-[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ppiankov/infranow/compare/v0.2.0...v0.3.0
 [0.1.2]: https://github.com/ppiankov/infranow/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ppiankov/infranow/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ppiankov/infranow/releases/tag/v0.1.0
