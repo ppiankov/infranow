@@ -38,6 +38,7 @@ type sarifRule struct {
 	ID               string            `json:"id"`
 	ShortDescription sarifMessage      `json:"shortDescription"`
 	DefaultConfig    sarifRuleDefaults `json:"defaultConfiguration"`
+	HelpURI          string            `json:"helpUri,omitempty"`
 }
 
 type sarifRuleDefaults struct {
@@ -84,6 +85,7 @@ func SARIF(problems []*models.Problem, toolVersion string) ([]byte, error) {
 				ID:               ruleID,
 				ShortDescription: sarifMessage{Text: p.Title},
 				DefaultConfig:    sarifRuleDefaults{Level: severityToLevel[p.Severity]},
+				HelpURI:          p.RunbookURL,
 			})
 		}
 	}

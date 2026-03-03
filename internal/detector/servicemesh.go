@@ -72,6 +72,7 @@ func (d *LinkerdControlPlaneDetector) Detect(ctx context.Context, provider metri
 				"available_replicas": float64(sample.Value),
 			},
 			Hint:        "Check pod status: kubectl get pods -n linkerd; Check logs: kubectl logs -n linkerd -l app=" + deployment,
+			RunbookURL:  models.RunbookBaseURL + "linkerd_control_plane_down.md",
 			BlastRadius: blastRadiusControlPlane,
 		}
 		problems = append(problems, problem)
@@ -135,6 +136,7 @@ func (d *LinkerdProxyInjectionDetector) Detect(ctx context.Context, provider met
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Proxy injector or identity service failure; Check logs: kubectl logs -n linkerd " + pod,
+			RunbookURL:  models.RunbookBaseURL + "linkerd_component_crash.md",
 			BlastRadius: blastRadiusMeshComponent,
 		}
 		problems = append(problems, problem)
@@ -196,6 +198,7 @@ func (d *IstioControlPlaneDetector) Detect(ctx context.Context, provider metrics
 				"available_replicas": float64(sample.Value),
 			},
 			Hint:        "Check pod status: kubectl get pods -n istio-system; Check logs: kubectl logs -n istio-system -l app=istiod",
+			RunbookURL:  models.RunbookBaseURL + "istio_control_plane_down.md",
 			BlastRadius: blastRadiusControlPlane,
 		}
 		problems = append(problems, problem)
@@ -259,6 +262,7 @@ func (d *IstioSidecarInjectionDetector) Detect(ctx context.Context, provider met
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Sidecar injector or pilot failure; Check logs: kubectl logs -n istio-system " + pod,
+			RunbookURL:  models.RunbookBaseURL + "istio_component_crash.md",
 			BlastRadius: blastRadiusMeshComponent,
 		}
 		problems = append(problems, problem)

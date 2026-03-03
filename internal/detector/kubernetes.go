@@ -73,6 +73,7 @@ func (d *OOMKillDetector) Detect(ctx context.Context, provider metrics.MetricsPr
 				"restart_count": float64(sample.Value),
 			},
 			Hint:        "Container memory limit too low or memory leak detected",
+			RunbookURL:  models.RunbookBaseURL + "oom_kill.md",
 			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
@@ -135,6 +136,7 @@ func (d *CrashLoopBackOffDetector) Detect(ctx context.Context, provider metrics.
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Application startup failure or fatal runtime error",
+			RunbookURL:  models.RunbookBaseURL + "crashloopbackoff.md",
 			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
@@ -197,6 +199,7 @@ func (d *ImagePullBackOffDetector) Detect(ctx context.Context, provider metrics.
 				"waiting": float64(sample.Value),
 			},
 			Hint:        "Image not found or registry authentication failure",
+			RunbookURL:  models.RunbookBaseURL + "imagepullbackoff.md",
 			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)
@@ -264,6 +267,7 @@ func (d *PodPendingDetector) Detect(ctx context.Context, provider metrics.Metric
 				"phase": float64(sample.Value),
 			},
 			Hint:        "Insufficient cluster resources or scheduling constraints",
+			RunbookURL:  models.RunbookBaseURL + "pending.md",
 			BlastRadius: blastRadiusPod,
 		}
 		problems = append(problems, problem)

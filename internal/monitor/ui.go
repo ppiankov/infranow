@@ -3,6 +3,8 @@ package monitor
 import (
 	"fmt"
 	"net/url"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -50,6 +52,7 @@ type Model struct {
 	searchMode    bool
 	searchQuery   string
 	filteredCount int
+	statusMsg     string
 
 	width  int
 	height int
@@ -89,27 +92,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle search mode input
 		if m.searchMode {
-			switch msg.String() {
-			case "esc", "ctrl+c":
-				m.searchMode = false
-				m.searchQuery = ""
-				m.updateProblems()
-			case "enter":
-				m.searchMode = false
-				m.updateProblems()
-			case "backspace":
-				if m.searchQuery != "" {
-					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-					m.updateProblems()
-				}
-			default:
-				// Add character to search
-				m.searchQuery += msg.String()
-				m.updateProblems()
-			}
-			return m, nil
+			return m.handleSearchKey(msg)
 		}
 
 		// Normal mode key handling
@@ -140,6 +124,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					_ = m.portForward.Restart() // Best-effort restart, status shown in UI
 				}()
 			}
+
+		case "?":
+			m.statusMsg = openRunbook(m.problems)
 
 		case "up", "k":
 			m.viewport.ScrollUp(1)
@@ -176,6 +163,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 
 	case tickMsg:
+		m.statusMsg = "" // Clear status on next tick
 		if !m.paused {
 			m.updateProblems()
 		}
@@ -218,6 +206,27 @@ func (m Model) View() string {
 	b.WriteString(m.renderFooter())
 
 	return b.String()
+}
+
+func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.searchMode = false
+		m.searchQuery = ""
+		m.updateProblems()
+	case "enter":
+		m.searchMode = false
+		m.updateProblems()
+	case "backspace":
+		if m.searchQuery != "" {
+			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+			m.updateProblems()
+		}
+	default:
+		m.searchQuery += msg.String()
+		m.updateProblems()
+	}
+	return m, nil
 }
 
 func (m *Model) updateProblems() {
@@ -463,7 +472,7 @@ func (m Model) renderFooter() string {
 	} else if m.searchQuery != "" {
 		help = helpStyle.Render(fmt.Sprintf("Filter: %s  ", m.searchQuery)) + searchStyle.Render("(esc: clear)") + helpStyle.Render("  s: sort  p: pause  /: search  q: quit")
 	} else {
-		baseHelp := "s: sort  p: pause  /: search  ↑↓/jk: scroll  g/G: top/bottom"
+		baseHelp := "s: sort  p: pause  /: search  ?: runbook  ↑↓/jk: scroll  g/G: top/bottom"
 		if m.portForward != nil {
 			baseHelp += "  r: restart-pf"
 		}
@@ -471,7 +480,34 @@ func (m Model) renderFooter() string {
 		help = helpStyle.Render(baseHelp)
 	}
 
-	return border + "\n" + help
+	footer := border + "\n" + help
+	if m.statusMsg != "" {
+		footer += "\n" + helpStyle.Render(m.statusMsg)
+	}
+	return footer
+}
+
+// openRunbook opens the runbook URL for the first problem in the list.
+func openRunbook(problems []*models.Problem) string {
+	if len(problems) == 0 {
+		return "No problems to show runbook for"
+	}
+	p := problems[0]
+	if p.RunbookURL == "" {
+		return "No runbook available"
+	}
+
+	var cmd string
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = "open"
+	default:
+		cmd = "xdg-open"
+	}
+	if err := exec.Command(cmd, p.RunbookURL).Start(); err != nil { //nolint:gosec // URL is from internal RunbookBaseURL constant
+		return "Failed to open runbook"
+	}
+	return "Opening runbook..."
 }
 
 func tickCmd(interval time.Duration) tea.Cmd {

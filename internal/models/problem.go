@@ -15,6 +15,9 @@ const (
 	SeverityWarning  Severity = "WARNING"  // Anomaly detected, no immediate impact
 )
 
+// RunbookBaseURL is the base URL for detector runbook documentation.
+const RunbookBaseURL = "https://github.com/ppiankov/infranow/blob/main/docs/runbooks/"
+
 // Scoring weights for problem importance ranking
 const (
 	scoreFatal    = 100.0
@@ -52,9 +55,10 @@ type Problem struct {
 	Volatility  float64 // Rate of change (problems/minute)
 
 	// Context
-	Labels  map[string]string  // source, namespace, cluster, etc.
-	Metrics map[string]float64 // Raw metric values for evidence
-	Hint    string             // One-line actionable guidance
+	Labels     map[string]string  // source, namespace, cluster, etc.
+	Metrics    map[string]float64 // Raw metric values for evidence
+	Hint       string             `json:"hint,omitempty"`        // One-line actionable guidance
+	RunbookURL string             `json:"runbook_url,omitempty"` // Link to detailed runbook
 
 	// Correlation (set by correlator, zero value = uncorrelated)
 	IncidentID   string   `json:"incident_id,omitempty"`

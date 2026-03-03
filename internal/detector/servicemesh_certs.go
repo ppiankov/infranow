@@ -80,6 +80,7 @@ func (d *LinkerdCertExpiryDetector) Detect(ctx context.Context, provider metrics
 				"remaining_seconds": remainingSeconds,
 			},
 			Hint:        "Rotate certs: linkerd check --proxy; Renew: linkerd upgrade | kubectl apply -f -",
+			RunbookURL:  models.RunbookBaseURL + "linkerd_cert_expiry.md",
 			BlastRadius: blastRadiusCertExpiry,
 		}
 		problems = append(problems, problem)
@@ -148,6 +149,7 @@ func (d *IstioCertExpiryDetector) Detect(ctx context.Context, provider metrics.M
 				"remaining_seconds": remainingSeconds,
 			},
 			Hint:        "Check status: istioctl proxy-status; Rotate: istioctl create-remote-secret",
+			RunbookURL:  models.RunbookBaseURL + "istio_cert_expiry.md",
 			BlastRadius: blastRadiusCertExpiry,
 		}
 		problems = append(problems, problem)

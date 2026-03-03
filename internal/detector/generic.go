@@ -91,6 +91,7 @@ func (d *HighErrorRateDetector) Detect(ctx context.Context, provider metrics.Met
 				"error_rate": errorRate,
 			},
 			Hint:        fmt.Sprintf("5xx error rate above %.0f%% threshold", d.threshold*100),
+			RunbookURL:  models.RunbookBaseURL + "high_error_rate.md",
 			BlastRadius: blastRadiusService,
 		}
 		problems = append(problems, problem)
@@ -170,6 +171,7 @@ func (d *DiskSpaceDetector) Detect(ctx context.Context, provider metrics.Metrics
 				"usage_percent": usagePercent,
 			},
 			Hint:        fmt.Sprintf("Disk usage above %.0f%%", d.warningThreshold*100),
+			RunbookURL:  models.RunbookBaseURL + "disk_full.md",
 			BlastRadius: blastRadiusFilesystem,
 		}
 		problems = append(problems, problem)
@@ -235,6 +237,7 @@ func (d *HighMemoryPressureDetector) Detect(ctx context.Context, provider metric
 				"memory_usage_percent": usagePercent,
 			},
 			Hint:        fmt.Sprintf("Memory pressure above %.0f%%", d.threshold*100),
+			RunbookURL:  models.RunbookBaseURL + "high_memory.md",
 			BlastRadius: blastRadiusNode,
 		}
 		problems = append(problems, problem)

@@ -66,6 +66,7 @@ func (d *TrustwatchCertExpiryDetector) Detect(ctx context.Context, provider metr
 				"remaining_seconds": remainingSeconds,
 			},
 			Hint:        "Run: trustwatch now",
+			RunbookURL:  models.RunbookBaseURL + "trustwatch_cert_expiry.md",
 			BlastRadius: blastRadiusMeshComponent,
 		}
 		problems = append(problems, problem)
@@ -126,6 +127,7 @@ func (d *TrustwatchProbeFailureDetector) Detect(ctx context.Context, provider me
 			},
 			Metrics:     map[string]float64{},
 			Hint:        "Run: trustwatch now",
+			RunbookURL:  models.RunbookBaseURL + "trustwatch_probe_failure.md",
 			BlastRadius: blastRadiusService,
 		}
 		problems = append(problems, problem)
