@@ -44,6 +44,9 @@ const (
 	titleColMin      = 10
 	entityColDefault = 30
 	colPadding       = 10 // total padding between columns
+
+	// promStaleThreshold triggers a warning if no successful query in this duration
+	promStaleThreshold = 2 * time.Minute
 )
 
 func (s SortMode) String() string {
@@ -494,7 +497,7 @@ func (m Model) renderHeader() string {
 		status = errorStyle.Render(fmt.Sprintf("⚠  Prometheus DOWN (%s ago)", formatDuration(timeSince)))
 	} else if stats.ErrorRate > 0.5 && stats.QueryCount > 10 {
 		status = warningStyle.Render(fmt.Sprintf("⚠  Prometheus UNSTABLE (%.0f%% errors)", stats.ErrorRate*100))
-	} else if !stats.LastSuccessfulQuery.IsZero() && time.Since(stats.LastSuccessfulQuery) > 2*time.Minute {
+	} else if !stats.LastSuccessfulQuery.IsZero() && time.Since(stats.LastSuccessfulQuery) > promStaleThreshold {
 		status = warningStyle.Render(fmt.Sprintf("⚠  No data (%s ago)", formatDuration(time.Since(stats.LastSuccessfulQuery))))
 	} else if m.paused {
 		status = statusStyle.Render("⏸  Paused")

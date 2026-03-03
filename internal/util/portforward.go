@@ -26,6 +26,12 @@ const (
 	StatusStarting
 	StatusRunning
 	StatusFailed
+
+	// kubeAPITimeout is the deadline for Kubernetes API calls during port-forward setup
+	kubeAPITimeout = 10 * time.Second
+
+	// restartDelay allows the OS to release the port before re-binding
+	restartDelay = 1 * time.Second
 )
 
 func (s PortForwardStatus) String() string {
@@ -109,7 +115,7 @@ func (pf *PortForward) Start() error {
 	pf.mu.Unlock()
 
 	// Get service to find a pod
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), kubeAPITimeout)
 	defer apiCancel()
 	svc, err := pf.clientset.CoreV1().Services(pf.namespace).Get(apiCtx, pf.service, metav1.GetOptions{})
 	if err != nil {
@@ -118,7 +124,7 @@ func (pf *PortForward) Start() error {
 	}
 
 	// Find a pod matching service selector
-	podCtx, podCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	podCtx, podCancel := context.WithTimeout(context.Background(), kubeAPITimeout)
 	defer podCancel()
 	pods, err := pf.clientset.CoreV1().Pods(pf.namespace).List(podCtx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{MatchLabels: svc.Spec.Selector}),
@@ -169,7 +175,7 @@ func (pf *PortForward) setupPortForward(podName string) error {
 	}
 
 	// Create dialer
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport, Timeout: 10 * time.Second}, "POST", req.URL())
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport, Timeout: kubeAPITimeout}, "POST", req.URL())
 
 	// Setup channels
 	pf.stopChan = make(chan struct{}, 1)
@@ -195,7 +201,7 @@ func (pf *PortForward) setupPortForward(podName string) error {
 	select {
 	case <-pf.readyChan:
 		return nil
-	case <-time.After(10 * time.Second):
+	case <-time.After(kubeAPITimeout):
 		return fmt.Errorf("timeout waiting for port-forward to be ready")
 	}
 }
@@ -266,8 +272,7 @@ func (pf *PortForward) Restart() error {
 		return fmt.Errorf("failed to stop port-forward: %w", err)
 	}
 
-	// Give it a moment to clean up
-	time.Sleep(1 * time.Second)
+	time.Sleep(restartDelay)
 
 	if err := pf.Start(); err != nil {
 		return fmt.Errorf("failed to restart port-forward: %w", err)

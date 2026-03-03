@@ -27,6 +27,9 @@ import (
 	"github.com/ppiankov/infranow/internal/util"
 )
 
+// firstDetectionTimeout is how long to wait for the initial detection cycle
+const firstDetectionTimeout = 30 * time.Second
+
 var (
 	prometheusURL     string
 	prometheusTimeout time.Duration
@@ -254,7 +257,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 	case <-watcher.UpdateChan():
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(30 * time.Second):
+	case <-time.After(firstDetectionTimeout):
 	}
 
 	problems := watcher.GetProblems()
@@ -303,7 +306,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 		// Fail if new problems detected (v0.1.2 Feature 1)
 		if failOnDrift && len(comparison.New) > 0 {
-			util.Exit(1)
+			util.Exit(util.ExitProblemsWarning)
 		}
 
 		return nil
@@ -365,7 +368,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 		for _, p := range problems {
 			if p.Severity.AtLeast(threshold) {
-				util.Exit(1) // Fail CI/CD
+				util.Exit(util.ExitProblemsWarning) // Fail CI/CD
 			}
 		}
 	}
@@ -379,7 +382,7 @@ func runTextMode(ctx context.Context, watcher *monitor.Watcher) error {
 	case <-watcher.UpdateChan():
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(30 * time.Second):
+	case <-time.After(firstDetectionTimeout):
 	}
 
 	problems := watcher.GetProblems()
@@ -451,7 +454,7 @@ func runSARIFMode(ctx context.Context, watcher *monitor.Watcher) error {
 	case <-watcher.UpdateChan():
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(30 * time.Second):
+	case <-time.After(firstDetectionTimeout):
 	}
 
 	problems := watcher.GetProblems()

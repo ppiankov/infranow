@@ -2,6 +2,7 @@ package baseline
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -40,7 +41,7 @@ func SaveBaseline(problems []*models.Problem, path string, metadata map[string]s
 
 	data, err := json.MarshalIndent(b, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal baseline: %w", err)
 	}
 
 	return os.WriteFile(path, data, 0o600)
