@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -287,6 +288,39 @@ func (pf *PortForward) setStatus(status PortForwardStatus, err error) {
 	defer pf.mu.Unlock()
 	pf.status = status
 	pf.lastError = err
+}
+
+// NewPortForwardForContext creates a PortForward using a pre-built KubeContext.
+// Used by sweep to target a specific kubeconfig context.
+func NewPortForwardForContext(kctx *KubeContext, service, namespace, localPort, remotePort string) *PortForward {
+	return &PortForward{
+		service:    service,
+		namespace:  namespace,
+		localPort:  localPort,
+		remotePort: remotePort,
+		clientset:  kctx.Clientset,
+		restConfig: kctx.RestConfig,
+		status:     StatusStopped,
+	}
+}
+
+// ActualLocalPort returns the OS-assigned local port after Start().
+// When localPort was "0", the OS assigns a random available port.
+// Returns the configured localPort if the forwarder hasn't started.
+func (pf *PortForward) ActualLocalPort() string {
+	pf.mu.RLock()
+	defer pf.mu.RUnlock()
+
+	if pf.forwarder == nil {
+		return pf.localPort
+	}
+
+	ports, err := pf.forwarder.GetPorts()
+	if err != nil || len(ports) == 0 {
+		return pf.localPort
+	}
+
+	return strconv.Itoa(int(ports[0].Local))
 }
 
 // GetInfo returns port-forward information
