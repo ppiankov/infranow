@@ -55,6 +55,11 @@ type Problem struct {
 	Labels  map[string]string  // source, namespace, cluster, etc.
 	Metrics map[string]float64 // Raw metric values for evidence
 	Hint    string             // One-line actionable guidance
+
+	// Correlation (set by correlator, zero value = uncorrelated)
+	IncidentID   string   `json:"incident_id,omitempty"`
+	IncidentType string   `json:"incident_type,omitempty"`
+	RelatedIDs   []string `json:"related_problems,omitempty"`
 }
 
 // Score calculates problem importance for ranking

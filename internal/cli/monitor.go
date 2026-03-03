@@ -18,6 +18,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/ppiankov/infranow/internal/baseline"
+	"github.com/ppiankov/infranow/internal/correlator"
 	"github.com/ppiankov/infranow/internal/detector"
 	"github.com/ppiankov/infranow/internal/filter"
 	"github.com/ppiankov/infranow/internal/metrics"
@@ -260,6 +261,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 	// Apply namespace filter (v0.1.2 Feature 3)
 	problems = applyFilters(problems)
+	problems = correlator.Correlate(problems)
 
 	// Save baseline if requested (v0.1.2 Feature 1)
 	if saveBaseline != "" {
@@ -320,6 +322,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 			"fatal":          summary[models.SeverityFatal],
 			"critical":       summary[models.SeverityCritical],
 			"warning":        summary[models.SeverityWarning],
+			"incidents":      countIncidents(problems),
 		},
 		"problems": problems,
 	}
@@ -381,6 +384,7 @@ func runTextMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 	problems := watcher.GetProblems()
 	problems = applyFilters(problems)
+	problems = correlator.Correlate(problems)
 
 	// Save baseline if requested
 	if saveBaseline != "" {
@@ -452,6 +456,7 @@ func runSARIFMode(ctx context.Context, watcher *monitor.Watcher) error {
 
 	problems := watcher.GetProblems()
 	problems = applyFilters(problems)
+	problems = correlator.Correlate(problems)
 
 	// Compare to baseline if requested — SARIF output for new problems only
 	if compareBaseline != "" {
@@ -520,6 +525,17 @@ func applyFilters(problems []*models.Problem) []*models.Problem {
 	}
 
 	return problems
+}
+
+// countIncidents returns the number of unique incidents in the problem set
+func countIncidents(problems []*models.Problem) int {
+	seen := make(map[string]bool)
+	for _, p := range problems {
+		if p.IncidentID != "" {
+			seen[p.IncidentID] = true
+		}
+	}
+	return len(seen)
 }
 
 // sanitizeURL redacts userinfo (credentials) from a URL for safe logging

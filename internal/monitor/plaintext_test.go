@@ -209,6 +209,51 @@ func TestHumanAge(t *testing.T) {
 	}
 }
 
+func TestPlainText_IncidentGrouping(t *testing.T) {
+	now := time.Now()
+	problems := []*models.Problem{
+		{
+			ID:         "p1",
+			Severity:   models.SeverityCritical,
+			Entity:     "prod/payment-api",
+			Title:      "OOMKilled 3 times",
+			FirstSeen:  now.Add(-5 * time.Minute),
+			Count:      3,
+			IncidentID: "memory_pressure/cluster",
+		},
+		{
+			ID:         "p2",
+			Severity:   models.SeverityCritical,
+			Entity:     "node-1",
+			Title:      "High memory usage 94%",
+			FirstSeen:  now.Add(-5 * time.Minute),
+			Count:      3,
+			IncidentID: "memory_pressure/cluster",
+		},
+		{
+			ID:        "p3",
+			Severity:  models.SeverityWarning,
+			Entity:    "monitoring/prometheus",
+			Title:     "Disk usage 91%",
+			FirstSeen: now.Add(-30 * time.Second),
+			Count:     1,
+		},
+	}
+	got := PlainText(problems, now)
+
+	// Should contain incident header
+	if !strings.Contains(got, "--- memory_pressure/cluster (2 problems) ---") {
+		t.Error("expected incident header")
+	}
+
+	// Uncorrelated problem should appear after incidents
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	lastLine := lines[len(lines)-1]
+	if !strings.Contains(lastLine, "Disk usage 91%") {
+		t.Errorf("uncorrelated problem should be last, got: %s", lastLine)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		name string

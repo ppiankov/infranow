@@ -12,6 +12,7 @@ const noProblemsMessage = "No problems detected."
 
 // PlainText renders problems as a fixed-width text table suitable for
 // piped output and CI logs. No ANSI colors or escape sequences.
+// Correlated problems are grouped under incident headers.
 func PlainText(problems []*models.Problem, now time.Time) string {
 	if len(problems) == 0 {
 		return noProblemsMessage
@@ -20,14 +21,61 @@ func PlainText(problems []*models.Problem, now time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%-8s %-30s %-40s %-10s %s\n", "SEV", "ENTITY", "TITLE", "AGE", "COUNT")
 	fmt.Fprintf(&b, "%-8s %-30s %-40s %-10s %s\n", "---", "------", "-----", "---", "-----")
-	for _, p := range problems {
-		sev := shortSeverity(p.Severity)
-		entity := truncate(p.Entity, 30)
-		title := truncate(p.Title, 40)
-		age := humanAge(now.Sub(p.FirstSeen))
-		fmt.Fprintf(&b, "%-8s %-30s %-40s %-10s %d\n", sev, entity, title, age, p.Count)
+
+	// Separate correlated and uncorrelated problems
+	incidents, uncorrelated := groupByIncident(problems)
+
+	// Render incidents first
+	for _, inc := range incidents {
+		fmt.Fprintf(&b, "--- %s (%d problems) ---\n", inc.id, len(inc.problems))
+		for _, p := range inc.problems {
+			renderProblemRow(&b, p, now)
+		}
 	}
+
+	// Render uncorrelated problems
+	for _, p := range uncorrelated {
+		renderProblemRow(&b, p, now)
+	}
+
 	return b.String()
+}
+
+type incident struct {
+	id       string
+	problems []*models.Problem
+}
+
+func groupByIncident(problems []*models.Problem) ([]incident, []*models.Problem) {
+	incidentMap := make(map[string][]*models.Problem)
+	var incidentOrder []string
+	var uncorrelated []*models.Problem
+
+	for _, p := range problems {
+		if p.IncidentID == "" {
+			uncorrelated = append(uncorrelated, p)
+			continue
+		}
+		if _, exists := incidentMap[p.IncidentID]; !exists {
+			incidentOrder = append(incidentOrder, p.IncidentID)
+		}
+		incidentMap[p.IncidentID] = append(incidentMap[p.IncidentID], p)
+	}
+
+	incidents := make([]incident, 0, len(incidentOrder))
+	for _, id := range incidentOrder {
+		incidents = append(incidents, incident{id: id, problems: incidentMap[id]})
+	}
+
+	return incidents, uncorrelated
+}
+
+func renderProblemRow(b *strings.Builder, p *models.Problem, now time.Time) {
+	sev := shortSeverity(p.Severity)
+	entity := truncate(p.Entity, 30)
+	title := truncate(p.Title, 40)
+	age := humanAge(now.Sub(p.FirstSeen))
+	fmt.Fprintf(b, "%-8s %-30s %-40s %-10s %d\n", sev, entity, title, age, p.Count)
 }
 
 // PlainTextSummary returns a one-line summary of problem counts by severity.
