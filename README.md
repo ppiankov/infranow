@@ -121,6 +121,14 @@ The interactive TUI displays problems ranked by importance. Keyboard controls:
 | `/` | Search/filter |
 | `Esc` | Clear filter |
 
+### Plain text mode
+
+```bash
+infranow monitor --prometheus-url http://localhost:9090 --output text
+```
+
+Outputs a plain text table to stdout and exits. Auto-selected when stdout is piped. Use `--once` to run a single detection cycle.
+
 ### JSON mode
 
 ```bash
@@ -128,6 +136,21 @@ infranow monitor --prometheus-url http://localhost:9090 --output json
 ```
 
 Waits for the first detection cycle, then outputs all problems as JSON to stdout and exits. Suitable for CI/CD pipelines and scripting.
+
+### SARIF mode (GitHub Code Scanning)
+
+```bash
+# Output SARIF 2.1.0 JSON for GitHub Code Scanning
+infranow monitor --prometheus-url http://prom:9090 --output sarif --once
+
+# Upload to GitHub Code Scanning
+infranow monitor --prometheus-url http://prom:9090 --output sarif --once > results.sarif
+gh api repos/{owner}/{repo}/code-scanning/sarifs \
+  -f "sarif=$(gzip -c results.sarif | base64)" \
+  -f "ref=refs/heads/main"
+```
+
+Renders problems as SARIF 2.1.0 JSON. Each problem type becomes a SARIF rule (`infranow/oomkill`, `infranow/crashloop`, etc.). Infrastructure entities map to logical locations. Severity mapping: FATAL/CRITICAL → error, WARNING → warning.
 
 ### Baseline compare
 
@@ -181,7 +204,8 @@ Detection:
   --detector-timeout duration   Detector execution timeout (default 30s)
 
 Output:
-  --output string               Output format: table, json (default "table")
+  --output string               Output format: table, text, json, sarif (default "table")
+  --once                        Run one detection cycle and exit
   --export-file string          Export problems to file
 
 Baseline:
@@ -268,19 +292,28 @@ Problem score formula: `severity_weight * (1 + blast_radius * 0.1) * (1 + persis
 - ~~Service mesh detectors for linkerd and istio~~ (done: 6 detectors)
 - ~~Certificate expiry detection with tiered severity~~ (done)
 
-### v0.1.2 (current)
+### v0.1.2
 
 - ~~Trustwatch certificate and probe detectors~~ (done: 2 detectors)
 - ~~Security audit: SHA-pinned CI/CD actions, Trivy scanning, supply chain integrity~~ (done)
 - ~~Security hardening: context timeouts, SSRF prevention, file permissions, signal handling~~ (done)
 - ~~golangci-lint config with gocritic, gocyclo, revive~~ (done)
+
+### v0.2.0 (current)
+
+- ~~Plain text output mode with isatty auto-detection~~ (done)
+- ~~`--once` flag for single detection cycle~~ (done)
+- ~~Tiered exit codes (0=clean, 1=warning, 2=critical/fatal)~~ (done)
+- ~~SARIF output for GitHub Code Scanning integration~~ (done)
+- ~~GoReleaser for automated builds and Homebrew tap~~ (done)
+
+### v0.3.0
+
 - Integration tests with docker-compose + Prometheus
 - Config file support (YAML)
 - Custom detector thresholds via config
-
-### v0.2.0
-
-- SARIF output for GitHub Code Scanning integration
+- Cross-detector correlation
+- Runbook hints per problem type
 - Prometheus self-metrics endpoint
 - Detector plugin system
 
