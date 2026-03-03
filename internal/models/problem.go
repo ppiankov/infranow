@@ -64,6 +64,16 @@ type Problem struct {
 	IncidentID   string   `json:"incident_id,omitempty"`
 	IncidentType string   `json:"incident_type,omitempty"`
 	RelatedIDs   []string `json:"related_problems,omitempty"`
+
+	// History (populated when --history is enabled, nil otherwise)
+	History *HistoryAnnotation `json:"history,omitempty"`
+}
+
+// HistoryAnnotation holds cross-session recurrence data from the history database
+type HistoryAnnotation struct {
+	FirstSeenGlobal  time.Time `json:"first_seen_global"`
+	TotalOccurrences int64     `json:"total_occurrences"`
+	RecurringSince   string    `json:"recurring_since,omitempty"`
 }
 
 // Score calculates problem importance for ranking

@@ -2,16 +2,36 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/ppiankov/infranow/internal/detector"
+	"github.com/ppiankov/infranow/internal/history"
 	"github.com/ppiankov/infranow/internal/metrics"
 	"github.com/ppiankov/infranow/internal/models"
 )
 
-const maxProblems = 10000
+const (
+	maxProblems = 10000
+
+	// historyUpsertTimeout is the deadline for async history writes
+	historyUpsertTimeout = 5 * time.Second
+
+	// historyLookupTimeout is the deadline for history lookups during annotation
+	historyLookupTimeout = 2 * time.Second
+)
+
+// WatcherOption configures optional Watcher behavior
+type WatcherOption func(*Watcher)
+
+// WithHistoryStore enables problem history persistence
+func WithHistoryStore(store history.Store) WatcherOption {
+	return func(w *Watcher) {
+		w.historyStore = store
+	}
+}
 
 // Watcher orchestrates problem detection and state management
 type Watcher struct {
@@ -32,13 +52,17 @@ type Watcher struct {
 	detectorTimeout time.Duration
 	semaphore       chan struct{} // Concurrency limiter
 
+	// History persistence (optional, nil when --history not enabled)
+	historyStore history.Store
+	startTime    time.Time
+
 	updateChan chan struct{} // Notify UI of changes
 	stopChan   chan struct{}
 	stopped    bool
 }
 
 // NewWatcher creates a new watcher instance
-func NewWatcher(provider metrics.MetricsProvider, registry *detector.Registry, maxConcurrency int, detectorTimeout time.Duration) *Watcher {
+func NewWatcher(provider metrics.MetricsProvider, registry *detector.Registry, maxConcurrency int, detectorTimeout time.Duration, opts ...WatcherOption) *Watcher {
 	w := &Watcher{
 		provider:          provider,
 		registry:          registry,
@@ -46,8 +70,13 @@ func NewWatcher(provider metrics.MetricsProvider, registry *detector.Registry, m
 		prometheusHealthy: true,
 		maxConcurrency:    maxConcurrency,
 		detectorTimeout:   detectorTimeout,
+		startTime:         time.Now(),
 		updateChan:        make(chan struct{}, 1),
 		stopChan:          make(chan struct{}),
+	}
+
+	for _, opt := range opts {
+		opt(w)
 	}
 
 	// Initialize semaphore if concurrency limited
@@ -148,6 +177,27 @@ func (w *Watcher) executeDetector(ctx context.Context, d detector.Detector) {
 
 	// Always update problems, even if empty (for cleanup)
 	w.updateProblems(problems)
+
+	// Persist to history database (best-effort, non-blocking)
+	if w.historyStore != nil && len(problems) > 0 {
+		records := make([]history.Record, 0, len(problems))
+		for _, p := range problems {
+			records = append(records, history.Record{
+				Fingerprint: history.Fingerprint(p.Type, p.Entity, p.Labels["namespace"]),
+				Type:        p.Type,
+				Entity:      p.Entity,
+				Namespace:   p.Labels["namespace"],
+				Severity:    string(p.Severity),
+				FirstSeen:   p.FirstSeen,
+				LastSeen:    p.LastSeen,
+			})
+		}
+		go func() {
+			hCtx, hCancel := context.WithTimeout(context.Background(), historyUpsertTimeout)
+			defer hCancel()
+			_ = w.historyStore.Upsert(hCtx, records) // Best-effort
+		}()
+	}
 }
 
 // checkPrometheusHealth performs periodic health check
@@ -354,4 +404,47 @@ func (w *Watcher) GetPrometheusStats() PrometheusStats {
 	}
 
 	return stats
+}
+
+// AnnotateHistory enriches problems with cross-session recurrence data from the history store.
+func (w *Watcher) AnnotateHistory(problems []*models.Problem) {
+	if w.historyStore == nil || len(problems) == 0 {
+		return
+	}
+
+	fps := make([]string, len(problems))
+	for i, p := range problems {
+		fps[i] = history.Fingerprint(p.Type, p.Entity, p.Labels["namespace"])
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), historyLookupTimeout)
+	defer cancel()
+
+	records, err := w.historyStore.Lookup(ctx, fps)
+	if err != nil {
+		return // Best-effort
+	}
+
+	for i, p := range problems {
+		if rec, ok := records[fps[i]]; ok {
+			p.History = &models.HistoryAnnotation{
+				FirstSeenGlobal:  rec.FirstSeen,
+				TotalOccurrences: rec.OccurrenceCount,
+			}
+			if rec.OccurrenceCount > 1 {
+				p.History.RecurringSince = humanDuration(time.Since(rec.FirstSeen))
+			}
+		}
+	}
+}
+
+// humanDuration formats a duration as a short human string like "3d", "2h", "5m"
+func humanDuration(d time.Duration) string {
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }

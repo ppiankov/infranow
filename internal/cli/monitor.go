@@ -21,6 +21,7 @@ import (
 	"github.com/ppiankov/infranow/internal/correlator"
 	"github.com/ppiankov/infranow/internal/detector"
 	"github.com/ppiankov/infranow/internal/filter"
+	"github.com/ppiankov/infranow/internal/history"
 	"github.com/ppiankov/infranow/internal/metrics"
 	"github.com/ppiankov/infranow/internal/models"
 	"github.com/ppiankov/infranow/internal/monitor"
@@ -58,6 +59,10 @@ var (
 
 	// v0.2.0 features
 	runOnce bool // --once: single detection cycle then exit
+
+	// History (WO-08)
+	historyEnabled bool
+	historyDBPath  string
 )
 
 // NewMonitorCommand creates the monitor subcommand
@@ -97,6 +102,10 @@ surfaces problems ranked by importance.`,
 	cmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 0, "Max concurrent detector executions (0 = unlimited)")
 	cmd.Flags().DurationVar(&detectorTimeout, "detector-timeout", 30*time.Second, "Detector execution timeout")
 	cmd.Flags().BoolVar(&runOnce, "once", false, "Run one detection cycle and exit")
+
+	// History flags (WO-08)
+	cmd.Flags().BoolVar(&historyEnabled, "history", false, "Enable problem history tracking (local SQLite)")
+	cmd.Flags().StringVar(&historyDBPath, "history-db", "", "History database path (env: INFRANOW_HISTORY_DB)")
 	return cmd
 }
 
@@ -190,8 +199,45 @@ func runMonitor(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Output format: %s\n", outputFormat)
 	}
 
+	// Setup history store if enabled (WO-08)
+	var watcherOpts []monitor.WatcherOption
+	if historyEnabled {
+		dbPath := historyDBPath
+		if dbPath == "" {
+			dbPath = os.Getenv("INFRANOW_HISTORY_DB")
+		}
+		if dbPath == "" {
+			var pathErr error
+			dbPath, pathErr = history.DefaultDBPath()
+			if pathErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: cannot determine history DB path: %v\n", pathErr)
+			}
+		}
+		if dbPath != "" {
+			store, storeErr := history.NewSQLiteStore(dbPath)
+			if storeErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: history disabled: %v\n", storeErr)
+			} else {
+				defer func() {
+					if err := store.Close(); err != nil {
+						fmt.Fprintf(os.Stderr, "[infranow] warning: failed to close history store: %v\n", err)
+					}
+				}()
+				pruneCtx, pruneCancel := context.WithTimeout(context.Background(), prometheusTimeout)
+				if _, pruneErr := store.Prune(pruneCtx, history.DefaultRetention); pruneErr != nil && verbose {
+					fmt.Fprintf(os.Stderr, "Warning: history prune failed: %v\n", pruneErr)
+				}
+				pruneCancel()
+				watcherOpts = append(watcherOpts, monitor.WithHistoryStore(store))
+				if verbose {
+					fmt.Printf("History enabled: %s\n", dbPath)
+				}
+			}
+		}
+	}
+
 	// Create watcher with concurrency controls
-	watcher := monitor.NewWatcher(provider, registry, maxConcurrency, detectorTimeout)
+	watcher := monitor.NewWatcher(provider, registry, maxConcurrency, detectorTimeout, watcherOpts...)
 
 	// Setup signal handling
 	monitorCtx, monitorCancel := context.WithCancel(context.Background())
@@ -265,6 +311,7 @@ func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
 	// Apply namespace filter (v0.1.2 Feature 3)
 	problems = applyFilters(problems)
 	problems = correlator.Correlate(problems)
+	watcher.AnnotateHistory(problems)
 
 	// Save baseline if requested (v0.1.2 Feature 1)
 	if saveBaseline != "" {
@@ -388,6 +435,7 @@ func runTextMode(ctx context.Context, watcher *monitor.Watcher) error {
 	problems := watcher.GetProblems()
 	problems = applyFilters(problems)
 	problems = correlator.Correlate(problems)
+	watcher.AnnotateHistory(problems)
 
 	// Save baseline if requested
 	if saveBaseline != "" {
@@ -460,6 +508,7 @@ func runSARIFMode(ctx context.Context, watcher *monitor.Watcher) error {
 	problems := watcher.GetProblems()
 	problems = applyFilters(problems)
 	problems = correlator.Correlate(problems)
+	watcher.AnnotateHistory(problems)
 
 	// Compare to baseline if requested — SARIF output for new problems only
 	if compareBaseline != "" {
