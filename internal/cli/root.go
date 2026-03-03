@@ -47,6 +47,7 @@ actionable problems when intervention is required.`,
 	// Add subcommands
 	rootCmd.AddCommand(NewMonitorCommand())
 	rootCmd.AddCommand(NewHistoryCommand())
+	rootCmd.AddCommand(NewSweepCommand())
 	rootCmd.AddCommand(newVersionCommand(info))
 
 	return rootCmd
