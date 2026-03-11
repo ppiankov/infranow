@@ -192,16 +192,20 @@ func (pf *PortForward) setupPortForward(podName string) error {
 	pf.forwarder = fw
 
 	// Start forwarding in background
+	errChan := make(chan error, 1)
 	go func() {
 		if err := fw.ForwardPorts(); err != nil {
 			pf.setStatus(StatusFailed, err)
+			errChan <- err
 		}
 	}()
 
-	// Wait for ready or timeout
+	// Wait for ready, error, or timeout
 	select {
 	case <-pf.readyChan:
 		return nil
+	case err := <-errChan:
+		return fmt.Errorf("port-forward failed: %w", err)
 	case <-time.After(kubeAPITimeout):
 		return fmt.Errorf("timeout waiting for port-forward to be ready")
 	}
