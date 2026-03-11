@@ -295,6 +295,11 @@ func registerDetectors(registry *detector.Registry) {
 	// Trustwatch certificate detectors
 	registry.Register(detector.NewTrustwatchCertExpiryDetector())
 	registry.Register(detector.NewTrustwatchProbeFailureDetector())
+
+	// Tote image salvage detectors
+	registry.Register(detector.NewToteSalvageFailureDetector())
+	registry.Register(detector.NewTotePushFailureDetector())
+	registry.Register(detector.NewToteHighFailureRateDetector())
 }
 
 func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
