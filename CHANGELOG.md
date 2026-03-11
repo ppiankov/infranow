@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-11
+
+### Added
+
+- 3 tote image salvage detectors (total: 18 detectors)
+  - ToteSalvageFailure: detects failing node-to-node image transfers (CRITICAL)
+  - TotePushFailure: detects failing backup registry pushes (WARNING)
+  - ToteHighFailureRate: detects when most image pull failures use tags instead of digests (WARNING)
+- Runbook docs for all 3 tote detectors
+- CLAUDE.md removed from git tracking (was committed since v0.1.0)
+
 ## [0.3.1] - 2026-03-11
 
 ### Fixed
@@ -135,7 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus health monitoring with connection status in TUI header
 - Multi-platform builds via Makefile (Linux, macOS, Windows)
 
-[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ppiankov/infranow/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ppiankov/infranow/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ppiankov/infranow/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ppiankov/infranow/compare/v0.2.0...v0.3.0
 [0.1.2]: https://github.com/ppiankov/infranow/compare/v0.1.1...v0.1.2
