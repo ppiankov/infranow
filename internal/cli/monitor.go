@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	"k8s.io/klog/v2"
 
 	"github.com/ppiankov/infranow/internal/baseline"
 	"github.com/ppiankov/infranow/internal/correlator"
@@ -552,6 +554,9 @@ func runSARIFMode(ctx context.Context, watcher *monitor.Watcher) error {
 }
 
 func runTUIMode(ctx context.Context, watcher *monitor.Watcher, prometheusURL string, refreshInterval time.Duration, portForward *util.PortForward) error {
+	// Silence klog so client-go port-forward errors don't corrupt the TUI
+	klog.SetOutput(io.Discard)
+
 	// Create TUI model
 	model := monitor.NewModel(watcher, prometheusURL, refreshInterval, portForward)
 
