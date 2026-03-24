@@ -302,6 +302,22 @@ func registerDetectors(registry *detector.Registry) {
 	registry.Register(detector.NewToteSalvageFailureDetector())
 	registry.Register(detector.NewTotePushFailureDetector())
 	registry.Register(detector.NewToteHighFailureRateDetector())
+
+	// pgpulse (PostgreSQL) detectors
+	registry.Register(detector.NewPgConnectionExhaustionDetector())
+	registry.Register(detector.NewPgReplicationLagDetector())
+	registry.Register(detector.NewPgDeadTupleRatioDetector())
+	registry.Register(detector.NewPgLockChainDepthDetector())
+	registry.Register(detector.NewPgSlowQueriesDetector())
+
+	// clickpulse (ClickHouse) detectors
+	registry.Register(detector.NewChMergePressureDetector())
+	registry.Register(detector.NewChStuckMutationsDetector())
+	registry.Register(detector.NewChReplicaLagDetector())
+	registry.Register(detector.NewChPartCountExplosionDetector())
+	registry.Register(detector.NewChDDLQueueStuckDetector())
+	registry.Register(detector.NewChKeeperHighLatencyDetector())
+	registry.Register(detector.NewChKeeperOutstandingRequestsDetector())
 }
 
 func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {
