@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-25
+
+### Added
+
+- 12 new detectors for pgpulse (PostgreSQL) and clickpulse (ClickHouse) metrics (total: 30 detectors)
+  - pgpulse: ConnectionExhaustion (CRITICAL), ReplicationLag, DeadTupleRatio, LockChainDepth, SlowQueries (WARNING)
+  - clickpulse: StuckMutations, PartCountExplosion, KeeperOutstandingRequests (CRITICAL), MergePressure, ReplicaLag, DDLQueueStuck, KeeperHighLatency (WARNING)
+- Runbook docs for all 12 new detectors
+
 ## [0.4.1] - 2026-03-18
 
 ### Fixed
