@@ -318,6 +318,27 @@ func registerDetectors(registry *detector.Registry) {
 	registry.Register(detector.NewChDDLQueueStuckDetector())
 	registry.Register(detector.NewChKeeperHighLatencyDetector())
 	registry.Register(detector.NewChKeeperOutstandingRequestsDetector())
+
+	// mongopulse (MongoDB) detectors
+	registry.Register(detector.NewMongoConnectionExhaustionDetector())
+	registry.Register(detector.NewMongoReplicationLagDetector())
+	registry.Register(detector.NewMongoOplogWindowDetector())
+	registry.Register(detector.NewMongoLockPercentageDetector())
+	registry.Register(detector.NewMongoCursorTimeoutDetector())
+
+	// mysqlpulse (MySQL/MariaDB) detectors
+	registry.Register(detector.NewMySQLConnectionExhaustionDetector())
+	registry.Register(detector.NewMySQLReplicationLagDetector())
+	registry.Register(detector.NewMySQLDeadlocksDetector())
+	registry.Register(detector.NewMySQLSlowQueriesDetector())
+	registry.Register(detector.NewMySQLInnoDBBufferPoolPressureDetector())
+
+	// airflowpulse (Apache Airflow) detectors
+	registry.Register(detector.NewAirflowDAGFailureRateDetector())
+	registry.Register(detector.NewAirflowSchedulerHeartbeatDetector())
+	registry.Register(detector.NewAirflowTaskQueueBacklogDetector())
+	registry.Register(detector.NewAirflowPoolExhaustionDetector())
+	registry.Register(detector.NewAirflowZombieTasksDetector())
 }
 
 func runJSONMode(ctx context.Context, watcher *monitor.Watcher) error {

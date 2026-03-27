@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-27
+
+### Added
+
+- 15 new detectors across 3 families (total: 45 detectors)
+  - mongopulse (MongoDB): ConnectionExhaustion (CRITICAL), OplogWindow (CRITICAL), ReplicationLag, LockPercentage, CursorTimeout (WARNING)
+  - mysqlpulse (MySQL/MariaDB): ConnectionExhaustion (CRITICAL), ReplicationLag, Deadlocks, SlowQueries, InnoDBBufferPoolPressure (WARNING)
+  - airflowpulse (Apache Airflow): SchedulerHeartbeat, PoolExhaustion (CRITICAL), DAGFailureRate, TaskQueueBacklog, ZombieTasks (WARNING)
+- Runbook docs for all 15 new detectors
+
 ## [0.5.0] - 2026-03-25
 
 ### Added
